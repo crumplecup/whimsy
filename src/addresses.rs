@@ -1,19 +1,38 @@
 use crate::prelude::*;
+use egui::Ui;
 use galileo::layer::feature_layer::Feature;
 use galileo_types::cartesian::{CartesianPoint2d, Point2d, Rect};
 use galileo_types::geo::Projection;
 use galileo_types::geometry::{CartesianGeometry2d, Geom, Geometry};
 use polite::Polite;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::path::Path;
 use tracing::info;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Deserialize, Serialize)]
 pub struct Address {
     #[serde(rename(deserialize = "FULLADDRES"))]
     pub label: String,
+    #[serde(rename(deserialize = "Add_Number"))]
+    pub number: i64,
+    #[serde(deserialize_with = "deserialize_mixed_pre_directional",
+            rename(deserialize = "St_PreDir"))]
+    pub directional: Option<StreetNamePreDirectional>,
+    #[serde(rename(deserialize = "St_Name"))]
+    pub street_name: String,
+    #[serde(deserialize_with = "deserialize_mixed_post_type",
+            rename(deserialize = "St_PosTyp"))]
+    pub street_type: Option<StreetNamePostType>,
+    #[serde(rename(deserialize = "Subaddre_1"))]
+    pub subaddress_id: Option<String>,
+    #[serde(deserialize_with = "deserialize_mixed_subaddress_type",
+            rename(deserialize = "Subaddress"))]
+    pub subaddress_type: Option<SubaddressType>,
+    #[serde(rename(deserialize = "Post_Code"))]
+    pub zip: i64,
     #[serde(rename(deserialize = "STATUS"))]
-    pub status: String,
+    pub status: AddressStatus,
     #[serde(rename(deserialize = "wgs84_y"))]
     pub lat: f64,
     #[serde(rename(deserialize = "wgs84_x"))]
@@ -23,6 +42,37 @@ pub struct Address {
     #[serde(rename(deserialize = "espg3857_y"))]
     pub y: f64,
 }
+
+impl Card for Address {
+    fn contains(&self, fragment: &str, config: SearchConfig) -> bool {
+        let mut label = self.label.to_owned();
+        let mut status = self.status.to_string();
+        let mut test = fragment.to_string();
+        if !config.case_sensitive {
+            label = label.to_lowercase();
+            status = status.to_lowercase();
+            test = test.to_lowercase();
+        }
+        if label.contains(&test) | status.contains(&test) {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn show(&self, ui: &mut Ui) {
+        ui.label(format!("Address: {}", self.label));
+        ui.label(format!("Status: {}", self.status));
+    }
+}
+
+impl fmt::Display for Address {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Address: {} \n Status: {}", self.label, self.status)
+    }
+}
+
+
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Addresses {

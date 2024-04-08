@@ -1,12 +1,14 @@
-use crate::prelude::{Addresses, Parcels};
+use crate::prelude::{Address, Addresses, Parcels};
 use egui::{Align, Color32, Context, DragValue, ScrollArea, Slider, TextStyle, Ui};
-use egui::containers::panel::Side;
+use itertools::sorted;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub struct UiState {
     pub addresses: Option<Addresses>,
     pub counter: i32,
+    pub panel: Option<Panel<Address>>,
     pub parcels: Option<Arc<Parcels>>,
     pub scroll_to: ScrollTo,
 }
@@ -21,10 +23,23 @@ impl UiState {
         //         None
         //     }
         // };
-        let addresses = match Addresses::load("data/addresses.data") {
-            Ok(data) => Some(data),
+        
+        let mut panel = None;
+        // let addresses = match Addresses::load("data/addresses.data") {
+        //     Ok(data) => {
+        //         panel = Some(Panel::new(data.records.clone()));
+        //         Some(data)
+        //     },
+        //     Err(_) => None,
+        // };
+        let addresses = match Addresses::from_csv("/home/erik/geojson/addresses.csv") {
+            Ok(data) => {
+                panel = Some(Panel::new(data.records.clone()));
+                Some(data)
+            },
             Err(_) => None,
         };
+
 
         let parcels = match Parcels::load("data/parcels.data") {
             Ok(data) => Some(Arc::new(data)),
@@ -34,6 +49,7 @@ impl UiState {
         Self {
             addresses,
             counter: Default::default(),
+            panel,
             parcels,
             scroll_to: Default::default(),
         }
@@ -60,24 +76,24 @@ impl UiState {
         });
         
         let text_style = TextStyle::Body;
-        egui::SidePanel::right("Sidebar").show(ui, |ui| {
-            ui.label("Address Info:");
-            if let Some(data) = &self.addresses {
-                let row_height = ui.text_style_height(&text_style);
-                let num_rows = data.records.len();
-                egui::ScrollArea::vertical().show_rows(
-                    ui,
-                    row_height,
-                    num_rows, 
-                    |ui, row_range| {
-                    for row in row_range {
-                        ui.label(format!("{:#?}", data.records[row]));
-                    }
-                });
-            } else {
-                ui.label("None loaded.");
-            }
-        });
+        // egui::SidePanel::right("Sidebar").show(ui, |ui| {
+        //     ui.label("Address Info:");
+        //     if let Some(data) = &self.addresses {
+        //         let row_height = ui.text_style_height(&text_style);
+        //         let num_rows = data.records.len();
+        //         egui::ScrollArea::vertical().show_rows(
+        //             ui,
+        //             row_height,
+        //             num_rows, 
+        //             |ui, row_range| {
+        //             for row in row_range {
+        //                 ui.label(format!("{:#?}", data.records[row]));
+        //             }
+        //         });
+        //     } else {
+        //         ui.label("None loaded.");
+        //     }
+        // });
 
         egui::Window::new("Parcels").show(ui, |ui| {
             if let Some(data) = &self.parcels {
@@ -105,9 +121,16 @@ impl UiState {
         });
 
         egui::Window::new("Addresses").show(ui, |ui| {
-            self.scroll_to.ui(ui);
+            if let Some(panel) = &mut self.panel {
+                panel.show(ui);
+            }
 
         });
+
+        // egui::Window::new("Addresses").show(ui, |ui| {
+        //     self.scroll_to.ui(ui);
+        //
+        // });
     }
 
 }
@@ -228,3 +251,223 @@ pub fn runner(state: &mut UiState, ui: &Context) {
         ui.label(format!("{}", state.counter));
     });
 }
+
+#[derive(Clone, Debug)]
+pub struct HashPanel<K, V> {
+    pub data: HashMap<K, V>,
+    pub selected: usize,
+    pub search: String,
+    pub value: V,
+}
+
+impl<K: Eq + std::hash::Hash + Ord + Clone + std::fmt::Display, V: std::fmt::Display + Clone + Default + Eq> HashPanel<K, V> {
+
+    pub fn new(data: HashMap<K, V>) -> Self {
+        let selected = 0;
+        let search = String::new();
+        let value = Default::default();
+        Self {
+            data,
+            selected,
+            search,
+            value,
+        }
+    }
+
+    pub fn show(&mut self, ui: &mut Ui) {
+        let mut panel = self.clone();
+        if !self.search.is_empty() {
+            panel.contains(&self.search);
+        }
+        let keys: Vec<&K> = sorted(panel.data.keys().into_iter()).collect();
+        let num_rows = keys.len();
+        let mut track_item = false;
+        if num_rows == 0 {
+            ui.label("Tracker disabled.");
+        } else {
+            ui.horizontal(|ui| {
+                track_item |= ui.add(Slider::new(&mut self.selected, 0..=(num_rows - 1)).text("Track Item"))
+                    .dragged();
+            });
+        }
+
+        let mut scroll_top = false;
+        let mut scroll_bottom = false;
+        ui.horizontal(|ui| {
+            scroll_top |= ui.button("|<").clicked();
+            scroll_bottom |= ui.button(">|").clicked();
+        });
+
+        ui.horizontal(|ui| {
+            ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("Search"));
+            if ui.button("X").clicked() {
+                self.search = Default::default();
+            }
+
+        });
+        ui.separator();
+        ScrollArea::vertical().max_height(400.)
+            .show(ui, |ui| {
+                if scroll_top {
+                    ui.scroll_to_cursor(Some(Align::TOP));
+                }
+                ui.vertical(|ui| {
+                    if num_rows == 0 {
+                        ui.label("No data to display.");
+                    } else {
+                        for item in 0..=(num_rows - 1) {
+                            if track_item && item == self.selected {
+                                let response =
+                                    ui.selectable_value(&mut self.value, self.data[keys[item]].clone(), format!("{}: {}", keys[item], self.data[keys[item]]));
+                                response.scroll_to_me(Some(Align::Center));
+                                self.value = self.data[keys[item]].clone();
+                            } else {
+                                ui.selectable_value(&mut self.value, self.data[keys[item]].clone(), format!("{}: {}", keys[item], self.data[keys[item]]));
+                                // ui.label(format!("{}: {}", keys[item], self.data[keys[item]]));
+                            }
+                        }
+                    }
+                });
+
+                if scroll_bottom {
+                    ui.scroll_to_cursor(Some(Align::BOTTOM));
+                }
+            })
+            .inner;
+
+        ui.separator();
+        ui.label(format!("Value selected: {}", self.value));
+    }
+
+    pub fn entry_contains(fragment: &str, entry: (&K, &mut V)) -> bool {
+        let key_str = entry.0.to_string();
+        let val_str = entry.1.to_string();
+        if key_str.contains(fragment) | val_str.contains(fragment) {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn contains(&mut self, fragment: &str) {
+        self.data.retain(|k, v| {
+            let key = k.to_string();
+            let val = v.to_string();
+            if key.contains(fragment) | val.contains(fragment) {
+                true
+            } else {
+                false
+            }
+        });
+    }
+
+}
+
+#[derive(Clone, Debug)]
+pub struct Panel<T> {
+    pub data: Vec<T>,
+    pub selected: usize,
+    pub search: String,
+    pub value: Option<T>,
+}
+
+impl<T: PartialEq + Clone + std::fmt::Display + Card> Panel<T> {
+
+    pub fn new(data: Vec<T>) -> Self {
+        let selected = 0;
+        let search = String::new();
+        let value = Default::default();
+        Self {
+            data,
+            selected,
+            search,
+            value,
+        }
+    }
+
+    pub fn show(&mut self, ui: &mut Ui) {
+        let mut panel = self.clone();
+        if !self.search.is_empty() {
+            panel.contains(&self.search);
+        }
+        let num_rows = panel.data.len();
+        let mut track_item = false;
+        if num_rows == 0 {
+            ui.label("Tracker disabled.");
+        } else {
+            ui.horizontal(|ui| {
+                track_item |= ui.add(Slider::new(&mut self.selected, 0..=(num_rows - 1)).text("Track Item"))
+                    .dragged();
+            });
+        }
+
+        let mut scroll_top = false;
+        let mut scroll_bottom = false;
+        ui.horizontal(|ui| {
+            scroll_top |= ui.button("|<").clicked();
+            scroll_bottom |= ui.button(">|").clicked();
+        });
+
+        ui.horizontal(|ui| {
+            ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("Search"));
+            if ui.button("X").clicked() {
+                self.search = Default::default();
+            }
+
+        });
+        ui.separator();
+        ScrollArea::vertical().max_height(400.)
+            .show(ui, |ui| {
+                if scroll_top {
+                    ui.scroll_to_cursor(Some(Align::TOP));
+                }
+                ui.vertical(|ui| {
+                    if num_rows == 0 {
+                        ui.label("No data to display.");
+                    } else {
+                        for item in 0..=(num_rows - 1) {
+                            if track_item && item == self.selected {
+                                let response =
+                                    ui.selectable_value(&mut self.value, Some(panel.data[item].clone()), format!("{}", panel.data[item]));
+                                response.scroll_to_me(Some(Align::Center));
+                                self.value = Some(panel.data[item].clone());
+                            } else {
+                                ui.selectable_value(&mut self.value, Some(panel.data[item].clone()), format!("{}", panel.data[item]));
+                                // ui.label(format!("{}: {}", keys[item], self.data[keys[item]]));
+                            }
+                        }
+                    }
+                });
+
+                if scroll_bottom {
+                    ui.scroll_to_cursor(Some(Align::BOTTOM));
+                }
+            })
+            .inner;
+
+        ui.separator();
+        ui.label(
+            if let Some(value) = &self.value {
+                format!("Value selected: {}", value)
+            } else {
+                format!("No value selected.")
+            });
+    }
+
+    pub fn contains(&mut self, fragment: &str) {
+        self.data = self.data.iter().filter(|v| v.contains(fragment, SearchConfig::default())).cloned().collect();
+    }
+
+}
+
+pub trait Card {
+    fn contains(&self, fragment: &str, config: SearchConfig) -> bool;
+    fn show(&self, ui: &mut Ui);
+}
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Copy)]
+pub struct SearchConfig {
+    pub case_sensitive: bool,
+}
+
+
