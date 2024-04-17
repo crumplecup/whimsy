@@ -1,5 +1,9 @@
 use galileo_types::cartesian::{CartesianPoint2d, Point2d, Rect};
+use polite::Polite;
+use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
+use std::path::Path;
+use tracing::info;
 
 /// Generic function to deserialize data types from a CSV file.  Called by methods to avoid code
 /// duplication.
@@ -15,14 +19,28 @@ pub fn from_csv<T: DeserializeOwned + Clone, P: AsRef<std::path::Path>>(
         match result {
             Ok(record) => records.push(record),
             Err(e) => {
-                tracing::info!("Dropping: {:#?}.", e.to_string());
+                info!("Dropping: {:#?}.", e.to_string());
                 dropped += 1;
             }
         }
     }
-    tracing::info!("{} records dropped.", dropped);
+    info!("{} records dropped.", dropped);
 
     Ok(records)
+}
+
+/// Generic function to serialize data types into a CSV file.  Called by methods to avoid code
+/// duplication.
+pub fn to_csv<T: Serialize + Clone, U: AsRef<std::path::Path>>(
+    item: &mut Vec<T>,
+    title: U,
+) -> Result<(), std::io::Error> {
+    let mut wtr = csv::Writer::from_path(title)?;
+    for i in item.clone() {
+        wtr.serialize(i)?;
+    }
+    wtr.flush()?;
+    Ok(())
 }
 
 pub fn point_bounds(point: &Point2d, buffer: f64) -> Rect {
@@ -31,4 +49,12 @@ pub fn point_bounds(point: &Point2d, buffer: f64) -> Rect {
     let ymin = point.y() - buffer;
     let ymax = point.y() + buffer;
     Rect::new(xmin, ymin, xmax, ymax)
+}
+
+pub fn save<T: Serialize, P: AsRef<Path>>(data: &T, path: P) -> Polite<()> {
+    info!("Serializing to binary.");
+    let encode = bincode::serialize(data)?;
+    info!("Writing to file.");
+    std::fs::write(path, encode)?;
+    Ok(())
 }

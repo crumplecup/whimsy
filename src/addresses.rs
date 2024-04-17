@@ -1,5 +1,6 @@
 use crate::prelude::*;
-use egui::Ui;
+use egui::{Align, Layout, Sense, Ui};
+use egui_extras::{Column, TableBuilder};
 use galileo::layer::feature_layer::Feature;
 use galileo_types::cartesian::{CartesianPoint2d, Point2d, Rect};
 use galileo_types::geo::Projection;
@@ -8,39 +9,116 @@ use polite::Polite;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::Path;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use tracing::info;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Deserialize, Serialize)]
 pub struct Address {
-    #[serde(rename(deserialize = "FULLADDRES"))]
+    // #[serde(rename(deserialize = "FULLADDRES"))]
     pub label: String,
-    #[serde(rename(deserialize = "Add_Number"))]
+    // #[serde(rename(deserialize = "Add_Number"))]
     pub number: i64,
-    #[serde(deserialize_with = "deserialize_mixed_pre_directional",
-            rename(deserialize = "St_PreDir"))]
+    // #[serde(deserialize_with = "deserialize_mixed_pre_directional",
+    //         rename(deserialize = "St_PreDir"))]
     pub directional: Option<StreetNamePreDirectional>,
-    #[serde(rename(deserialize = "St_Name"))]
+    // #[serde(rename(deserialize = "St_Name"))]
     pub street_name: String,
-    #[serde(deserialize_with = "deserialize_mixed_post_type",
-            rename(deserialize = "St_PosTyp"))]
+    // #[serde(deserialize_with = "deserialize_mixed_post_type",
+    //         rename(deserialize = "St_PosTyp"))]
     pub street_type: Option<StreetNamePostType>,
-    #[serde(rename(deserialize = "Subaddre_1"))]
+    // #[serde(rename(deserialize = "Subaddre_1"))]
     pub subaddress_id: Option<String>,
-    #[serde(deserialize_with = "deserialize_mixed_subaddress_type",
-            rename(deserialize = "Subaddress"))]
+    // #[serde(deserialize_with = "deserialize_mixed_subaddress_type",
+    //         rename(deserialize = "Subaddress"))]
     pub subaddress_type: Option<SubaddressType>,
-    #[serde(rename(deserialize = "Post_Code"))]
+    // #[serde(rename(deserialize = "Post_Code"))]
     pub zip: i64,
-    #[serde(rename(deserialize = "STATUS"))]
+    // #[serde(rename(deserialize = "STATUS"))]
     pub status: AddressStatus,
-    #[serde(rename(deserialize = "wgs84_y"))]
+    // #[serde(rename(deserialize = "wgs84_y"))]
     pub lat: f64,
-    #[serde(rename(deserialize = "wgs84_x"))]
+    // #[serde(rename(deserialize = "wgs84_x"))]
     pub lon: f64,
-    #[serde(rename(deserialize = "espg3857_x"))]
+    // #[serde(rename(deserialize = "espg3857_x"))]
     pub x: f64,
-    #[serde(rename(deserialize = "espg3857_y"))]
+    // #[serde(rename(deserialize = "espg3857_y"))]
     pub y: f64,
+}
+
+// impl Default for Address {
+//     fn default() -> Self {
+//
+//     }
+// }
+
+impl Address {
+    pub fn column<T: fmt::Display>(&self, columns: &AddressColumns) -> String {
+        match *columns {
+            AddressColumns::Label => format!("{}", self.label),
+            AddressColumns::Number => format!("{}", self.number),
+            AddressColumns::Directional => {
+                if let Some(prefix) = self.directional {
+                    format!("{}", prefix)
+                } else {
+                    "".to_string()
+                }
+            },
+            AddressColumns::StreetName => format!("{}", self.street_name),
+            AddressColumns::StreetType => {
+                if let Some(value) = &self.street_type {
+                    format!("{}", value.abbreviate())
+                } else {
+                    "".to_string()
+                }
+            },
+            AddressColumns::SubaddressType => {
+                if let Some(subtype) = &self.subaddress_type {
+                    format!("{}", subtype)
+                } else {
+                    "".to_string()
+                }
+            },
+            AddressColumns::SubaddressId => {
+                if let Some(value) = &self.subaddress_id {
+                    format!("{}", value)
+                } else {
+                    "".to_string()
+                }
+            },
+            AddressColumns::Zip => format!("{}", self.zip),
+            AddressColumns::Status => format!("{}", self.status),
+        }
+    }
+
+    pub fn columns(&self) -> Vec<String> {
+        let mut values = Vec::new();
+        for column in AddressColumns::iter() {
+            values.push(self.column::<String>(&column));
+        }
+        values
+    }
+}
+
+impl Tabular<Address> for Addresses {
+    fn headers() -> Vec<String> {
+        AddressColumns::names()
+    }
+
+    fn rows(&self) -> Vec<Address> {
+        self.records.clone()
+    }
+}
+
+impl Columnar for Address {
+    fn names() -> Vec<String> {
+        AddressColumns::names()
+    }
+
+
+    fn values(&self) -> Vec<String> {
+        self.columns()
+    }
 }
 
 impl Card for Address {
@@ -64,6 +142,7 @@ impl Card for Address {
         ui.label(format!("Address: {}", self.label));
         ui.label(format!("Status: {}", self.status));
     }
+
 }
 
 impl fmt::Display for Address {
@@ -71,6 +150,53 @@ impl fmt::Display for Address {
         write!(f, "Address: {} \n Status: {}", self.label, self.status)
     }
 }
+
+pub trait RowView<T: fmt::Display> {
+    fn row(&self) -> T;
+}
+
+#[derive(Debug, PartialEq, EnumIter)]
+pub enum AddressColumns {
+    Label,
+    Number,
+    Directional,
+    StreetName,
+    StreetType,
+    SubaddressType,
+    SubaddressId,
+    Zip,
+    Status
+}
+
+impl AddressColumns {
+    pub fn names() -> Vec<String> {
+        let mut values = Vec::new();
+        for column in AddressColumns::iter() {
+            values.push(format!("{column}"));
+        }
+        values
+    }
+
+}
+
+impl fmt::Display for AddressColumns {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Self::Label => write!(f, "Label"),
+            Self::Number => write!(f, "Number"),
+            Self::Directional => write!(f, "Directional Prefix"),
+            Self::StreetName => write!(f, "Street Name"),
+            Self::StreetType => write!(f, "Street Type"),
+            Self::SubaddressType => write!(f, "Subaddress Type"),
+            Self::SubaddressId => write!(f, "Subaddress ID"),
+            Self::Zip => write!(f, "Zip"),
+            Self::Status => write!(f, "Status"),
+        }
+    }
+}
+
+
+
 
 
 
@@ -83,6 +209,15 @@ impl Addresses {
     pub fn from_csv<P: AsRef<Path>>(path: P) -> Polite<Self> {
         let records = from_csv(path)?;
         Ok(Addresses { records })
+    }
+
+    pub fn to_csv<P: AsRef<Path>>(&mut self, path: P) -> Polite<()> {
+        to_csv(&mut self.records, path)?;
+        Ok(())
+    }
+
+    pub fn save<P: AsRef<Path>>(&self, path:P) -> Polite<()> {
+        save(self, path)
     }
 
     pub fn load<P: AsRef<Path>>(path: P) -> Polite<Self> {
@@ -170,11 +305,7 @@ impl From<Addresses> for AddressPoints {
 
 impl AddressPoints {
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Polite<()> {
-        info!("Serializing to binary.");
-        let encode = bincode::serialize(self)?;
-        info!("Writing to file.");
-        std::fs::write(path, encode)?;
-        Ok(())
+        save(self, path)
     }
 
     pub fn load<P: AsRef<Path>>(path: P) -> Polite<Self> {

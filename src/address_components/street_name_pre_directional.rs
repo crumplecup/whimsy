@@ -1,5 +1,6 @@
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// The `StreetNamePreDirectional` enum represents the street name predirectional component of the
 /// complete street name.  Predirectionals in the City consist of NW, NE, SW and SE, but County
@@ -80,8 +81,8 @@ pub fn deserialize_mixed_pre_directional<'de, D: Deserializer<'de>>(
     Ok(result)
 }
 
-impl std::fmt::Display for StreetNamePreDirectional {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for StreetNamePreDirectional {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut out = "".to_owned();
         match self {
             StreetNamePreDirectional::NORTH => out.push_str("N"),
