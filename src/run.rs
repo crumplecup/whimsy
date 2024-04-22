@@ -1,4 +1,4 @@
-use crate::prelude::{Action, App};
+use crate::prelude::{Action, App, Command, Choices, CommandOptions};
 use std::sync::Arc;
 use winit::{
     event::{Event, KeyEvent, WindowEvent},
@@ -48,7 +48,30 @@ pub async fn run(window: Window, event_loop: EventLoop<()>) {
 
                         // Dispatch actions only on press.
                         if event.state.is_pressed() {
-                            tracing::info!("{:#?}", &event);
+                            tracing::trace!("{:#?}", &event);
+                            let command = if let Key::Character(ch) = event.logical_key.as_ref() {
+                                Command::from_str(&ch)
+                            } else {
+                                None
+                            };
+
+                            if let Some(command) = command {
+                                tracing::info!("{:#?}", &command);
+                                let choices = state.command.choices().value();
+                                if let Some(opts) = choices.get(&command) {
+                                    match opts {
+                                        CommandOptions::Commands(c) => {
+                                            tracing::info!("Commands available: {:#?}", c);
+                                        },
+                                        CommandOptions::Acts(a) => {
+                                            tracing::info!("Acts in queue: {:#?}", a);
+                                            for act in a {
+                                                state.ui_state.act(act);
+                                            }
+                                        },
+                                    }
+                                }
+                            };
                             let action = if let Key::Character(ch) = event.logical_key.as_ref() {
                                 App::process_key_binding(&ch.to_uppercase(), &mods)
                             } else {

@@ -1,4 +1,4 @@
-use crate::prelude::{Action, EguiState, KEY_BINDINGS, MOUSE_BINDINGS, UiState, WgpuFrame};
+use crate::prelude::{Action, CommandMode, EguiState, KEY_BINDINGS, MOUSE_BINDINGS, UiState, WgpuFrame};
 use std::{iter, sync::Arc};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event_loop::EventLoop;
@@ -19,6 +19,7 @@ pub struct App {
     pub theme: Theme,
     /// Cursor position over the window.
     pub cursor_position: Option<PhysicalPosition<f64>>,
+    pub command: CommandMode,
 }
 
 impl App {
@@ -88,6 +89,8 @@ impl App {
         let queue = Arc::new(queue);
 
         let theme = window.theme().unwrap_or(Theme::Dark);
+        let command = CommandMode::new();
+        tracing::info!("Commands: {:#?}", &command);
 
         Self {
             surface,
@@ -101,6 +104,7 @@ impl App {
             modifiers: Default::default(),
             theme,
             cursor_position: Default::default(),
+            command,
         }
     }
 

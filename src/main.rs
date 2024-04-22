@@ -1,6 +1,5 @@
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
 use whimsy::prelude::run;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 // pub mod run_ui;
 // pub mod state;
 
@@ -10,7 +9,7 @@ async fn main() {
     if tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "incant=info".into()),
+                .unwrap_or_else(|_| "whimsy=info".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .try_init().is_ok() {}; 
