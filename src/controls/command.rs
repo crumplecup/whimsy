@@ -3,7 +3,7 @@ use nom::character::complete::{alphanumeric1, space0};
 use nom::combinator::opt;
 use nom::IResult;
 use nom::sequence::delimited;
-use polite::Polite;
+use polite::{Polite, FauxPas};
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::path::Path;
@@ -81,9 +81,9 @@ impl Command {
 
     pub fn parse_mods(input: &str) -> IResult<&str, Option<ModifiersState>> {
         let (rem, bracketed) = delimited(tag("<"), alphanumeric1, tag(">"))(input)?;
-        info!("Bracketed: {}", bracketed);
+        trace!("Bracketed: {}", bracketed);
         let bracketed = Self::into_mods(bracketed);
-        info!("Remaining: {}", rem);
+        trace!("Remaining: {}", rem);
         let (rem, _) = space0(rem)?;
         let (rem, _) = tag("+")(rem)?;
         let (rem, _) = space0(rem)?;
@@ -231,8 +231,15 @@ impl Choices {
             toml::Value::Table(tab) => {
                 let command_queue = tab.keys().map(|k| k.clone()).collect::<Vec<String>>();
                 for key in command_queue {
+                    info!("Reading {}", &key);
                     if let toml::Value::String(s) = &commands[&key] {
-                        let (_, command) = Command::parse_str(s).unwrap();
+                        let s = s.to_owned();
+                        let command = match Command::parse_str(&s) {
+                            Ok((_, c)) => Ok(c),
+                            Err(_) => Err(FauxPas::Unknown),
+                            // Err(e) => Err(FauxPas::from(e)),
+                        };
+                        let command = command?;
                         let act = Act::from_str(&key);
                         if let Some(a) = act {
                             let mut vec = Vec::new();

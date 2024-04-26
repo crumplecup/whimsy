@@ -69,5 +69,22 @@ fn parses_command() -> Polite<()> {
     if let Some(c) = opt {
         assert_eq!(c, Command::new("b", &Some(ModifiersState::CONTROL)));
     }
+    let (_, opt) = Command::parse_str(c3)?;
+    if let Some(c) = opt {
+        assert_eq!(c, Command::new("c", &Some(ModifiersState::ALT)));
+    }
+    let (_, opt) = Command::parse_str(c4)?;
+    if let Some(c) = opt {
+        assert_eq!(c, Command::new("d", &Some(ModifiersState::SHIFT)));
+    }
+    let (_, opt) = Command::parse_str(c7)?;
+    if let Some(c) = opt {
+        assert_eq!(c, Command::new("g", &Some(ModifiersState::SUPER)));
+    }
+    let (_, opt) = Command::parse_str(c8)?;
+    if let Some(c) = opt {
+        assert_eq!(c, Command::new("h", &None));
+    }
+    
     Ok(())
 }
