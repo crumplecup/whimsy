@@ -1,10 +1,12 @@
-use crate::prelude::{Action, CommandMode, EguiState, KEY_BINDINGS, MOUSE_BINDINGS, UiState, WgpuFrame};
+use crate::prelude::{
+    Action, CommandMode, EguiState, UiState, WgpuFrame, KEY_BINDINGS, MOUSE_BINDINGS,
+};
 use std::{iter, sync::Arc};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
-use winit::event_loop::EventLoop;
 use winit::event::*;
-use winit::window::{Fullscreen, Theme, Window, WindowId};
+use winit::event_loop::EventLoop;
 use winit::keyboard::ModifiersState;
+use winit::window::{Fullscreen, Theme, Window, WindowId};
 
 pub struct App {
     pub surface: Arc<wgpu::Surface<'static>>,
@@ -248,51 +250,56 @@ impl App {
         self.window.set_maximized(!maximized);
     }
 
-    pub fn handle_action(&mut self, event_loop: &EventLoop<()>, window_id: WindowId, action: Action) {
-    //     // let cursor_position = self.cursor_position;
-    //     // let window = self.windows.get_mut(&window_id).unwrap();
-    //     println!("Executing action: {action:?}");
+    pub fn handle_action(
+        &mut self,
+        event_loop: &EventLoop<()>,
+        window_id: WindowId,
+        action: Action,
+    ) {
+        //     // let cursor_position = self.cursor_position;
+        //     // let window = self.windows.get_mut(&window_id).unwrap();
+        //     println!("Executing action: {action:?}");
         match action {
-    //         Action::CloseWindow => {
-    //             // let _ = self.window.remove(&window_id);
-    //         }
-    //         // Action::CreateNewWindow => {
-    //         //     #[cfg(any(x11_platform, wayland_platform))]
-    //         //     if let Err(err) = window.window.request_activation_token() {
-    //         //         println!("Failed to get activation token: {err}");
-    //         //     } else {
-    //         //         return;
-    //         //     }
-    //         //
-    //         //     if let Err(err) = self.create_window(event_loop, None) {
-    //         //         eprintln!("Error creating new window: {err}");
-    //         //     }
-    //         // }
-    //         Action::ToggleResizeIncrements => self.toggle_resize_increments(),
-    //         Action::ToggleCursorVisibility => window.toggle_cursor_visibility(),
-    //         Action::ToggleResizable => window.toggle_resizable(),
-    //         Action::ToggleDecorations => window.toggle_decorations(),
-    //         Action::ToggleFullscreen => window.toggle_fullscreen(),
-    //         Action::ToggleMaximize => window.toggle_maximize(),
-    //         Action::ToggleImeInput => window.toggle_ime(),
-    //         Action::Minimize => window.minimize(),
-    //         Action::NextCursor => window.next_cursor(),
-    //         Action::NextCustomCursor => window.next_custom_cursor(&self.custom_cursors),
-    //         Action::CycleCursorGrab => window.cycle_cursor_grab(),
-    //         Action::DragWindow => window.drag_window(),
-    //         Action::DragResizeWindow => window.drag_resize_window(),
-    //         Action::ShowWindowMenu => window.show_menu(),
+            //         Action::CloseWindow => {
+            //             // let _ = self.window.remove(&window_id);
+            //         }
+            //         // Action::CreateNewWindow => {
+            //         //     #[cfg(any(x11_platform, wayland_platform))]
+            //         //     if let Err(err) = window.window.request_activation_token() {
+            //         //         println!("Failed to get activation token: {err}");
+            //         //     } else {
+            //         //         return;
+            //         //     }
+            //         //
+            //         //     if let Err(err) = self.create_window(event_loop, None) {
+            //         //         eprintln!("Error creating new window: {err}");
+            //         //     }
+            //         // }
+            //         Action::ToggleResizeIncrements => self.toggle_resize_increments(),
+            //         Action::ToggleCursorVisibility => window.toggle_cursor_visibility(),
+            //         Action::ToggleResizable => window.toggle_resizable(),
+            //         Action::ToggleDecorations => window.toggle_decorations(),
+            //         Action::ToggleFullscreen => window.toggle_fullscreen(),
+            //         Action::ToggleMaximize => window.toggle_maximize(),
+            //         Action::ToggleImeInput => window.toggle_ime(),
+            //         Action::Minimize => window.minimize(),
+            //         Action::NextCursor => window.next_cursor(),
+            //         Action::NextCustomCursor => window.next_custom_cursor(&self.custom_cursors),
+            //         Action::CycleCursorGrab => window.cycle_cursor_grab(),
+            //         Action::DragWindow => window.drag_window(),
+            //         Action::DragResizeWindow => window.drag_resize_window(),
+            //         Action::ShowWindowMenu => window.show_menu(),
             Action::PrintHelp => self.print_help(),
-    //         #[cfg(macos_platform)]
-    //         Action::CycleOptionAsAlt => window.cycle_option_as_alt(),
-    //         #[cfg(macos_platform)]
-    //         Action::CreateNewTab => {
-    //             let tab_id = window.window.tabbing_identifier();
-    //             if let Err(err) = self.create_window(event_loop, Some(tab_id)) {
-    //                 eprintln!("Error creating new window: {err}");
-    //             }
+            //         #[cfg(macos_platform)]
+            //         Action::CycleOptionAsAlt => window.cycle_option_as_alt(),
+            //         #[cfg(macos_platform)]
+            //         Action::CreateNewTab => {
+            //             let tab_id = window.window.tabbing_identifier();
+            //             if let Err(err) = self.create_window(event_loop, Some(tab_id)) {
+            //                 eprintln!("Error creating new window: {err}");
+            //             }
             _ => tracing::info!("Other action!"),
-            }
-    //     }
+        }
+        //     }
     }
 }

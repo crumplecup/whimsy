@@ -5,4 +5,3 @@ pub mod gpu;
 pub use egui_state::EguiState;
 pub use eponym::App;
 pub use gpu::WgpuFrame;
-

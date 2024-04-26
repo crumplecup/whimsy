@@ -1,7 +1,7 @@
-use whimsy::prelude::Command;
 use polite::Polite;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use whimsy::prelude::Command;
 use winit::keyboard::ModifiersState;
 
 #[test]
@@ -12,9 +12,11 @@ fn observer() -> Polite<()> {
                 .unwrap_or_else(|_| "test=info".into()),
         )
         .with(tracing_subscriber::fmt::layer())
-        .try_init().is_ok() {}; 
+        .try_init()
+        .is_ok()
+    {};
     info!("Subscriber initialized.");
-    
+
     info!("Parsing modifiers.");
     parses_modifier()?;
     info!("Parsing modifiers successful.");
@@ -85,6 +87,6 @@ fn parses_command() -> Polite<()> {
     if let Some(c) = opt {
         assert_eq!(c, Command::new("h", &None));
     }
-    
+
     Ok(())
 }

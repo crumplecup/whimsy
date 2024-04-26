@@ -1,8 +1,7 @@
-use whimsy::prelude::run;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use whimsy::prelude::run;
 // pub mod run_ui;
 // pub mod state;
-
 
 #[tokio::main]
 async fn main() {
@@ -12,7 +11,9 @@ async fn main() {
                 .unwrap_or_else(|_| "whimsy=info".into()),
         )
         .with(tracing_subscriber::fmt::layer())
-        .try_init().is_ok() {}; 
+        .try_init()
+        .is_ok()
+    {};
     tracing::info!("Subscriber initialized.");
 
     let event_loop = winit::event_loop::EventLoop::new().unwrap();

@@ -1,9 +1,9 @@
 use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, space0};
 use nom::combinator::opt;
-use nom::IResult;
 use nom::sequence::delimited;
-use polite::{Polite, FauxPas};
+use nom::IResult;
+use polite::{FauxPas, Polite};
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::path::Path;
@@ -36,7 +36,6 @@ impl Modifiers {
     }
 }
 
-
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct Command {
     key: String,
@@ -59,7 +58,6 @@ impl Command {
             "super" => Some(ModifiersState::SUPER),
             _ => None,
         }
-
     }
 
     pub fn parse_str(input: &str) -> IResult<&str, Option<Self>> {
@@ -99,13 +97,11 @@ impl Command {
                 "" => {
                     warn!("Empty command detected.");
                     None
-                },
-                key => {
-                    Some(Self {
-                        key: key.to_owned(),
-                        mods: None,
-                    })
-                },
+                }
+                key => Some(Self {
+                    key: key.to_owned(),
+                    mods: None,
+                }),
             }
         }
     }
@@ -130,7 +126,7 @@ impl Act {
             "down" => Some(Self::Down),
             "next" => Some(Self::Next),
             "previous" => Some(Self::Previous),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -209,7 +205,6 @@ impl Default for CommandMode {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Choices(HashMap<Command, CommandOptions>);
 
@@ -251,7 +246,7 @@ impl Choices {
                         }
                     }
                 }
-            },
+            }
             _ => info!("Commands not a toml table."),
         }
         trace!("Choices: {:#?}", choices);

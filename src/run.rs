@@ -1,12 +1,12 @@
-use crate::prelude::{Action, App, Command, Choices, CommandOptions};
+use crate::prelude::{Action, App, Choices, Command, CommandOptions};
 use std::sync::Arc;
+use wgpu::SurfaceError;
 use winit::{
     event::{Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::{Key, NamedKey},
     window::Window,
 };
-use wgpu::SurfaceError;
 
 pub async fn run(window: Window, event_loop: EventLoop<()>) {
     let window = Arc::new(window);
@@ -29,8 +29,7 @@ pub async fn run(window: Window, event_loop: EventLoop<()>) {
                     | WindowEvent::KeyboardInput {
                         event:
                             KeyEvent {
-                                logical_key:
-                                    Key::Named(NamedKey::Escape),
+                                logical_key: Key::Named(NamedKey::Escape),
                                 ..
                             },
                         ..
@@ -38,7 +37,7 @@ pub async fn run(window: Window, event_loop: EventLoop<()>) {
                     WindowEvent::ModifiersChanged(modifiers) => {
                         state.modifiers = modifiers.state();
                         tracing::info!("Modifiers changed to {:?}", state.modifiers);
-            }
+                    }
                     WindowEvent::KeyboardInput {
                         event,
                         is_synthetic: false,
@@ -62,13 +61,13 @@ pub async fn run(window: Window, event_loop: EventLoop<()>) {
                                     match opts {
                                         CommandOptions::Commands(c) => {
                                             tracing::info!("Commands available: {:#?}", c);
-                                        },
+                                        }
                                         CommandOptions::Acts(a) => {
                                             tracing::info!("Acts in queue: {:#?}", a);
                                             for act in a {
                                                 state.ui_state.act(act);
                                             }
-                                        },
+                                        }
                                     }
                                 }
                             };

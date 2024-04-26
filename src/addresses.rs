@@ -63,7 +63,7 @@ impl Address {
                 } else {
                     "".to_string()
                 }
-            },
+            }
             AddressColumns::StreetName => format!("{}", self.street_name),
             AddressColumns::StreetType => {
                 if let Some(value) = &self.street_type {
@@ -71,21 +71,21 @@ impl Address {
                 } else {
                     "".to_string()
                 }
-            },
+            }
             AddressColumns::SubaddressType => {
                 if let Some(subtype) = &self.subaddress_type {
                     format!("{}", subtype)
                 } else {
                     "".to_string()
                 }
-            },
+            }
             AddressColumns::SubaddressId => {
                 if let Some(value) = &self.subaddress_id {
                     format!("{}", value)
                 } else {
                     "".to_string()
                 }
-            },
+            }
             AddressColumns::Zip => format!("{}", self.zip),
             AddressColumns::Status => format!("{}", self.status),
         }
@@ -115,7 +115,6 @@ impl Columnar for Address {
         AddressColumns::names()
     }
 
-
     fn values(&self) -> Vec<String> {
         self.columns()
     }
@@ -142,7 +141,6 @@ impl Card for Address {
         ui.label(format!("Address: {}", self.label));
         ui.label(format!("Status: {}", self.status));
     }
-
 }
 
 impl fmt::Display for Address {
@@ -165,7 +163,7 @@ pub enum AddressColumns {
     SubaddressType,
     SubaddressId,
     Zip,
-    Status
+    Status,
 }
 
 impl AddressColumns {
@@ -176,7 +174,6 @@ impl AddressColumns {
         }
         values
     }
-
 }
 
 impl fmt::Display for AddressColumns {
@@ -195,11 +192,6 @@ impl fmt::Display for AddressColumns {
     }
 }
 
-
-
-
-
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Addresses {
     pub records: Vec<Address>,
@@ -216,7 +208,7 @@ impl Addresses {
         Ok(())
     }
 
-    pub fn save<P: AsRef<Path>>(&self, path:P) -> Polite<()> {
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> Polite<()> {
         save(self, path)
     }
 

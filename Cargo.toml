@@ -28,7 +28,7 @@ indicatif = { version = "0.17.8", features = ["rayon"] }
 itertools = "0.12.1"
 nom = "7.1.3"
 num-traits = "0.2.18"
-polite = { path = "../cordial/polite", default-features = false, features = ["bin", "gis", "parse", "win"] }
+polite = { git = "https://github.com/crumplecup/cordial", default-features = false, features = ["bin", "gis", "parse", "win"] }
 proj = "0.27.2"
 rayon = "1.10.0"
 serde = { version = "1.0.197", features = ["derive"] }

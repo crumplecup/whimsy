@@ -20,9 +20,9 @@ impl Tree {
         let leaves = HashMap::new();
         let nodes = HashMap::new();
         let windows = Vec::new();
-        Self { 
-            flags, 
-            leaves, 
+        Self {
+            flags,
+            leaves,
             nodes,
             windows,
             ..Default::default()
@@ -72,7 +72,12 @@ impl Tree {
     }
 
     pub fn get_window(&self, window: Uuid) -> Vec<Uuid> {
-        self.nodes.iter().map(|(k, v)| (k, v)).filter(|(_, v)| v.window == Some(window)).map(|(k, _)| k.clone()).collect::<Vec<Uuid>>()
+        self.nodes
+            .iter()
+            .map(|(k, v)| (k, v))
+            .filter(|(_, v)| v.window == Some(window))
+            .map(|(k, _)| k.clone())
+            .collect::<Vec<Uuid>>()
     }
 
     pub fn current_window(&self) -> Uuid {
@@ -314,4 +319,3 @@ impl Leaf {
         leaf_id
     }
 }
-

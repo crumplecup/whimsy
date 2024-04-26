@@ -1,8 +1,12 @@
-use crate::prelude::{Act, Address, Addresses, Parcels, Tabular, TableView, Choices, Tree, Leaf, Node};
-use egui::{Align, Color32, Context, DragValue, Id, Layout, ScrollArea, Sense, Slider, TextStyle, Ui};
+use crate::prelude::{
+    Act, Address, Addresses, Choices, Leaf, Node, Parcels, TableView, Tabular, Tree,
+};
+use egui::{
+    Align, Color32, Context, DragValue, Id, Layout, ScrollArea, Sense, Slider, TextStyle, Ui,
+};
 use egui_extras::{Column, TableBuilder};
 use itertools::sorted;
-use std::collections::{BTreeMap, HashSet, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -28,7 +32,7 @@ impl UiState {
         //         None
         //     }
         // };
-        
+
         let mut panel = None;
         let mut address_table = None;
         let addresses = match Addresses::load("data/addresses.data") {
@@ -37,7 +41,7 @@ impl UiState {
                 address_table = Some(TableView::new(data.clone()));
                 tracing::info!("Records read: {}", data.records.len());
                 Some(data)
-            },
+            }
             Err(e) => {
                 tracing::info!("Could not read records: {}", e.to_string());
                 None
@@ -54,7 +58,6 @@ impl UiState {
         //     },
         //     Err(_) => None,
         // };
-
 
         let parcels = match Parcels::load("data/parcels.data") {
             Ok(data) => Some(Arc::new(data)),
@@ -90,21 +93,21 @@ impl UiState {
             Act::Right => {
                 let _ = self.focus_tree.next_node();
                 self.focus_tree.select_current();
-            },
+            }
             Act::Left => {
                 let _ = self.focus_tree.previous_node();
                 self.focus_tree.select_current();
-            },
+            }
             Act::Up => self.focus_tree.select_previous(),
             Act::Down => self.focus_tree.select_next(),
             Act::Next => {
                 let _ = self.focus_tree.next_window();
                 self.focus_tree.select_current();
-            },
+            }
             Act::Previous => {
                 let _ = self.focus_tree.previous_window();
                 self.focus_tree.select_current();
-            },
+            }
         }
     }
 
@@ -174,7 +177,6 @@ impl UiState {
             }
         });
         egui::Window::new("Counter").show(ui, |ui| {
-
             let button = ui.button("Counter");
             if self.in_focus(button.id) {
                 tracing::info!("Requesting focus for {:#?}", button.id);
@@ -228,7 +230,7 @@ impl UiState {
                 }
             }
         });
-        
+
         let text_style = TextStyle::Body;
         // egui::SidePanel::right("Sidebar").show(ui, |ui| {
         //     ui.label("Address Info:");
@@ -238,7 +240,7 @@ impl UiState {
         //         egui::ScrollArea::vertical().show_rows(
         //             ui,
         //             row_height,
-        //             num_rows, 
+        //             num_rows,
         //             |ui, row_range| {
         //             for row in row_range {
         //                 ui.label(format!("{:#?}", data.records[row]));
@@ -265,40 +267,40 @@ impl UiState {
                     row_height,
                     num_rows,
                     |ui, row_range| {
-                    for row in row_range {
-                        let record = &data.records[row].owner;
-                        let name = if let Some(val) = &record.name {
-                            val.clone()
-                        } else {
-                            "None".to_string()
-                        };
-                        let owner = ui.label(format!("Owner: {}", name));
-                        if set_parcels.is_some() {
-                            let leaf = self.focus_tree.leaf(owner.id);
-                            if let Some(table) = table_id {
-                                self.focus_tree.with_leaf(table, leaf);
+                        for row in row_range {
+                            let record = &data.records[row].owner;
+                            let name = if let Some(val) = &record.name {
+                                val.clone()
+                            } else {
+                                "None".to_string()
+                            };
+                            let owner = ui.label(format!("Owner: {}", name));
+                            if set_parcels.is_some() {
+                                let leaf = self.focus_tree.leaf(owner.id);
+                                if let Some(table) = table_id {
+                                    self.focus_tree.with_leaf(table, leaf);
+                                }
+                            }
+                            if let Some(id) = select {
+                                if id == owner.id {
+                                    tracing::info!("Requesting focus for {:#?}", owner.id);
+                                    owner.request_focus();
+                                    tracing::info!("Clearing select.");
+                                    select = None;
+                                }
+                            }
+
+                            ui.label(format!("Map #: {}", &record.id));
+                        }
+                        if let Some(id) = set_parcels {
+                            tracing::info!("Tree: {:#?}", self.focus_tree);
+                            if let Some(p) = self.focus_tree.flags.get_mut(&id) {
+                                *p = true;
+                                set_parcels = None;
                             }
                         }
-                        if let Some(id) = select {
-                            if id == owner.id {
-                                tracing::info!("Requesting focus for {:#?}", owner.id);
-                                owner.request_focus();
-                                tracing::info!("Clearing select.");
-                                select = None;
-
-                            }
-                        }
-
-                        ui.label(format!("Map #: {}", &record.id));
-                    }
-                    if let Some(id) = set_parcels {
-                        tracing::info!("Tree: {:#?}", self.focus_tree);
-                        if let Some(p) = self.focus_tree.flags.get_mut(&id) {
-                            *p = true;
-                            set_parcels = None;
-                        }
-                    }
-                });
+                    },
+                );
                 self.focus_tree.select = select;
             } else {
                 ui.label("None loaded.");
@@ -324,7 +326,6 @@ impl UiState {
         //
         // });
     }
-
 }
 
 #[derive(Clone, Debug, Default)]
@@ -337,8 +338,11 @@ pub struct HashPanel<K, V> {
     pub value: V,
 }
 
-impl<K: Eq + std::hash::Hash + Ord + Clone + std::fmt::Display + Default, V: std::fmt::Display + Clone + Default + Eq + std::hash::Hash> HashPanel<K, V> {
-
+impl<
+        K: Eq + std::hash::Hash + Ord + Clone + std::fmt::Display + Default,
+        V: std::fmt::Display + Clone + Default + Eq + std::hash::Hash,
+    > HashPanel<K, V>
+{
     pub fn new(data: BTreeMap<K, V>) -> Self {
         Self {
             data,
@@ -366,14 +370,16 @@ impl<K: Eq + std::hash::Hash + Ord + Clone + std::fmt::Display + Default, V: std
             ui.label("Tracker disabled.");
         } else {
             ui.horizontal(|ui| {
-                track_item |= ui.add(Slider::new(&mut self.target, 0..=(num_rows - 1)))
+                track_item |= ui
+                    .add(Slider::new(&mut self.target, 0..=(num_rows - 1)))
                     .dragged();
                 scroll_top |= ui.button("|<").clicked();
                 scroll_bottom |= ui.button(">|").clicked();
             });
         }
         ui.separator();
-        ScrollArea::vertical().max_height(400.)
+        ScrollArea::vertical()
+            .max_height(400.)
             .show(ui, |ui| {
                 if scroll_top {
                     ui.scroll_to_cursor(Some(Align::TOP));
@@ -384,12 +390,19 @@ impl<K: Eq + std::hash::Hash + Ord + Clone + std::fmt::Display + Default, V: std
                     } else {
                         for item in 0..=(num_rows - 1) {
                             if track_item && item == self.target {
-                                let response =
-                                    ui.selectable_value(&mut self.value, self.data[keys[item]].clone(), format!("{}: {}", keys[item], self.data[keys[item]]));
+                                let response = ui.selectable_value(
+                                    &mut self.value,
+                                    self.data[keys[item]].clone(),
+                                    format!("{}: {}", keys[item], self.data[keys[item]]),
+                                );
                                 response.scroll_to_me(Some(Align::Center));
                                 self.value = self.data[keys[item]].clone();
                             } else {
-                                ui.selectable_value(&mut self.value, self.data[keys[item]].clone(), format!("{}: {}", keys[item], self.data[keys[item]]));
+                                ui.selectable_value(
+                                    &mut self.value,
+                                    self.data[keys[item]].clone(),
+                                    format!("{}: {}", keys[item], self.data[keys[item]]),
+                                );
                                 // ui.label(format!("{}: {}", keys[item], self.data[keys[item]]));
                             }
                         }
@@ -447,7 +460,8 @@ impl<K: Eq + std::hash::Hash + Ord + Clone + std::fmt::Display + Default, V: std
             ui.label("Tracker disabled.");
         } else {
             ui.horizontal(|ui| {
-                track_item |= ui.add(Slider::new(&mut self.target, 0..=(num_rows - 1)))
+                track_item |= ui
+                    .add(Slider::new(&mut self.target, 0..=(num_rows - 1)))
                     .dragged();
                 scroll_top |= ui.button("|<").clicked();
                 scroll_bottom |= ui.button(">|").clicked();
@@ -477,20 +491,19 @@ impl<K: Eq + std::hash::Hash + Ord + Clone + std::fmt::Display + Default, V: std
         if scroll_bottom {
             table = table.scroll_to_row(self.data.len(), Some(Align::BOTTOM));
         }
-        table
-            .body(|body| {
-                body.rows(20., panel.data.len(), |mut row| {
-                    let row_index = row.index();
-                    row.set_selected(self.selected.contains(&panel.data[keys[row_index]]));
-                    row.col(|ui| {
-                        ui.label(format!("{}", keys[row_index]));
-                    });
-                    row.col(|ui| {
-                        ui.label(format!("{}", panel.data[keys[row_index]]));
-                    });
-                    self.toggle_row_selection(panel.data[keys[row_index]].clone(), &row.response());
+        table.body(|body| {
+            body.rows(20., panel.data.len(), |mut row| {
+                let row_index = row.index();
+                row.set_selected(self.selected.contains(&panel.data[keys[row_index]]));
+                row.col(|ui| {
+                    ui.label(format!("{}", keys[row_index]));
                 });
+                row.col(|ui| {
+                    ui.label(format!("{}", panel.data[keys[row_index]]));
+                });
+                self.toggle_row_selection(panel.data[keys[row_index]].clone(), &row.response());
             });
+        });
     }
 
     pub fn toggle_row_selection(&mut self, target: V, row_response: &egui::Response) {
@@ -502,7 +515,6 @@ impl<K: Eq + std::hash::Hash + Ord + Clone + std::fmt::Display + Default, V: std
             }
         }
     }
-
 }
 
 #[derive(Clone, Debug, Default)]
@@ -515,12 +527,14 @@ pub struct Panel<T> {
 }
 
 impl<T: PartialEq + Clone + std::fmt::Display + Card + Default> Panel<T> {
-
     pub fn new(data: Vec<T>) -> Self {
-        let data = data.iter().map(|v| {
-            let k = Uuid::new_v4();
-            (k, v.clone())
-        }).collect::<HashMap<Uuid, T>>();
+        let data = data
+            .iter()
+            .map(|v| {
+                let k = Uuid::new_v4();
+                (k, v.clone())
+            })
+            .collect::<HashMap<Uuid, T>>();
         Self {
             data,
             ..Default::default()
@@ -546,7 +560,8 @@ impl<T: PartialEq + Clone + std::fmt::Display + Card + Default> Panel<T> {
             ui.label("Tracker disabled.");
         } else {
             ui.horizontal(|ui| {
-                track_item |= ui.add(Slider::new(&mut self.target, 0..=(num_rows - 1)))
+                track_item |= ui
+                    .add(Slider::new(&mut self.target, 0..=(num_rows - 1)))
                     .dragged();
                 scroll_top |= ui.button("|<").clicked();
                 scroll_bottom |= ui.button(">|").clicked();
@@ -575,17 +590,16 @@ impl<T: PartialEq + Clone + std::fmt::Display + Card + Default> Panel<T> {
         if scroll_bottom {
             table = table.scroll_to_row(self.data.len(), Some(Align::BOTTOM));
         }
-        table
-            .body(|body| {
-                body.rows(20., keys.len(), |mut row| {
-                    let row_index = row.index();
-                    row.set_selected(self.selected.contains(&keys[row_index]));
-                    row.col(|ui| {
-                        ui.label(format!("{}", panel.data[&keys[row_index]]));
-                    });
-                    self.toggle_row_selection(&keys[row_index], &row.response());
+        table.body(|body| {
+            body.rows(20., keys.len(), |mut row| {
+                let row_index = row.index();
+                row.set_selected(self.selected.contains(&keys[row_index]));
+                row.col(|ui| {
+                    ui.label(format!("{}", panel.data[&keys[row_index]]));
                 });
+                self.toggle_row_selection(&keys[row_index], &row.response());
             });
+        });
     }
 
     pub fn toggle_row_selection(&mut self, target: &Uuid, row_response: &egui::Response) {
@@ -597,7 +611,6 @@ impl<T: PartialEq + Clone + std::fmt::Display + Card + Default> Panel<T> {
             }
         }
     }
-
 
     // pub fn contains(&mut self, fragment: &str) {
     //     self.data = self.data.iter().filter(|v| v.contains(fragment, SearchConfig::default())).cloned().collect();
@@ -614,7 +627,6 @@ impl<T: PartialEq + Clone + std::fmt::Display + Card + Default> Panel<T> {
             }
         });
     }
-
 }
 
 pub trait Card {
@@ -626,5 +638,3 @@ pub trait Card {
 pub struct SearchConfig {
     pub case_sensitive: bool,
 }
-
-

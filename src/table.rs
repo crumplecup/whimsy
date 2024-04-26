@@ -1,6 +1,6 @@
 use egui::{Align, Layout, Sense, Slider, Ui};
 use egui_extras::{Column, TableBuilder};
-use spreadsheet::prelude::{BeaDatum, BeaData};
+use spreadsheet::prelude::{BeaData, BeaDatum};
 use std::collections::HashSet;
 use std::marker::PhantomData;
 
@@ -51,7 +51,8 @@ impl<T: Tabular<U>, U: Columnar> TableView<T, U> {
             ui.label("Tracker disabled.");
         } else {
             ui.horizontal(|ui| {
-                track_item |= ui.add(Slider::new(&mut self.target, 0..=(num_rows - 1)))
+                track_item |= ui
+                    .add(Slider::new(&mut self.target, 0..=(num_rows - 1)))
                     .dragged();
                 scroll_top |= ui.button("|<").clicked();
                 scroll_bottom |= ui.button(">|").clicked();
@@ -73,25 +74,32 @@ impl<T: Tabular<U>, U: Columnar> TableView<T, U> {
             table = table.scroll_to_row(self.target, Some(Align::Center));
         }
 
-
         table
             .header(20.0, |mut header| {
                 let names = BeaData::names();
-                names.iter().map(|v| header.col(|ui| {
-                    ui.strong(v);
-                })).for_each(drop);
+                names
+                    .iter()
+                    .map(|v| {
+                        header.col(|ui| {
+                            ui.strong(v);
+                        })
+                    })
+                    .for_each(drop);
             })
             .body(|mut body| {
                 for (i, record) in self.data.rows().iter().enumerate() {
                     let columns = record.values();
                     body.row(18.0, |mut row| {
-                        columns.iter().map(|v| {
-                            row.set_selected(self.selection.contains(&i));
-                            row.col(|ui| {
-                                ui.label(v);
-                            });
-                            self.toggle_row_selection(i, &row.response());
-                        }).for_each(drop);
+                        columns
+                            .iter()
+                            .map(|v| {
+                                row.set_selected(self.selection.contains(&i));
+                                row.col(|ui| {
+                                    ui.label(v);
+                                });
+                                self.toggle_row_selection(i, &row.response());
+                            })
+                            .for_each(drop);
                     });
                 }
             });
@@ -100,7 +108,6 @@ impl<T: Tabular<U>, U: Columnar> TableView<T, U> {
     // pub fn show(&self, ui: &mut Ui) {
     //     self.data.table(ui);
     // }
-
 }
 
 pub trait Tabular<T: Columnar> {

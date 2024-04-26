@@ -1,7 +1,7 @@
 use galileo_types::cartesian::{CartesianPoint2d, Point2d, Rect};
 use polite::Polite;
-use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tracing::info;
 
