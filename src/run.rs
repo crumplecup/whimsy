@@ -1,10 +1,10 @@
-use crate::prelude::{Action, App, Choices, Command, CommandOptions};
+use crate::prelude::{Act, Action, App, Choices, Command, CommandOptions, Modifiers};
 use std::sync::Arc;
 use wgpu::SurfaceError;
 use winit::{
     event::{Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    keyboard::{Key, NamedKey},
+    keyboard::{Key, ModifiersState, NamedKey},
     window::Window,
 };
 
@@ -47,16 +47,19 @@ pub async fn run(window: Window, event_loop: EventLoop<()>) {
 
                         // Dispatch actions only on press.
                         if event.state.is_pressed() {
+                            let opt = if !mods.is_empty() { Some(mods) } else { None };
+
                             tracing::trace!("{:#?}", &event);
                             let command = if let Key::Character(ch) = event.logical_key.as_ref() {
-                                Command::from_str(&ch)
+                                Some(Command::new(&ch, &mods))
                             } else {
                                 None
                             };
 
                             if let Some(command) = command {
                                 tracing::info!("{:#?}", &command);
-                                let choices = state.command.choices().value();
+                                let choices = state.command.clone();
+                                let choices = choices.choices().value();
                                 if let Some(opts) = choices.get(&command) {
                                     match opts {
                                         CommandOptions::Commands(c) => {
@@ -65,10 +68,16 @@ pub async fn run(window: Window, event_loop: EventLoop<()>) {
                                         CommandOptions::Acts(a) => {
                                             tracing::info!("Acts in queue: {:#?}", a);
                                             for act in a {
-                                                state.ui_state.act(act);
+                                                match act {
+                                                    Act::App(v) => state.act(v),
+                                                    Act::Egui(v) => state.ui_state.act(v),
+                                                    Act::Be => tracing::info!("Taking no action."),
+                                                }
                                             }
                                         }
                                     }
+                                } else {
+                                    tracing::info!("Command not recognized.");
                                 }
                             };
                             let action = if let Key::Character(ch) = event.logical_key.as_ref() {

@@ -17,8 +17,8 @@ pub mod prelude {
     };
     pub use crate::addresses::{Address, AddressPoint, AddressPoints, Addresses};
     pub use crate::controls::{
-        Act, Action, Binding, Choices, Command, CommandMode, CommandOptions, Leaf, Modifiers, Node,
-        Tree, KEY_BINDINGS, MOUSE_BINDINGS,
+        Act, Action, AppAct, Binding, Choices, Command, CommandMode, CommandOptions, EguiAct, Leaf,
+        Modifiers, Node, Stringly, Tree, KEY_BINDINGS, MOUSE_BINDINGS,
     };
     pub use crate::convert::Convert;
     pub use crate::parcels::{Parcel, Parcels};

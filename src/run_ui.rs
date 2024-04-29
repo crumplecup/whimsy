@@ -1,5 +1,5 @@
 use crate::prelude::{
-    Act, Address, Addresses, Choices, Leaf, Node, Parcels, TableView, Tabular, Tree,
+    Address, Addresses, Choices, EguiAct, Leaf, Node, Parcels, TableView, Tabular, Tree,
 };
 use egui::{
     Align, Color32, Context, DragValue, Id, Layout, ScrollArea, Sense, Slider, TextStyle, Ui,
@@ -88,26 +88,23 @@ impl UiState {
         }
     }
 
-    pub fn act(&mut self, act: &Act) {
+    pub fn act(&mut self, act: &EguiAct) {
         match *act {
-            Act::Right => {
+            EguiAct::Right => {
                 let _ = self.focus_tree.next_node();
                 self.focus_tree.select_current();
             }
-            Act::Left => {
+            EguiAct::Left => {
                 let _ = self.focus_tree.previous_node();
                 self.focus_tree.select_current();
             }
-            Act::Up => self.focus_tree.select_previous(),
-            Act::Down => self.focus_tree.select_next(),
-            Act::Next => {
-                let _ = self.focus_tree.next_window();
-                self.focus_tree.select_current();
-            }
-            Act::Previous => {
-                let _ = self.focus_tree.previous_window();
-                self.focus_tree.select_current();
-            }
+            EguiAct::Up => self.focus_tree.select_previous(),
+            EguiAct::Down => self.focus_tree.select_next(),
+            EguiAct::Next => self.focus_tree.select_next_node(),
+            EguiAct::Previous => self.focus_tree.select_previous_node(),
+            EguiAct::NextWindow => self.focus_tree.select_next_window(),
+            EguiAct::PreviousWindow => self.focus_tree.select_previous_window(),
+            EguiAct::Be => tracing::info!("Taking no action."),
         }
     }
 

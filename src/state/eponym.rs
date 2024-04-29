@@ -1,7 +1,8 @@
 use crate::prelude::{
-    Action, CommandMode, EguiState, UiState, WgpuFrame, KEY_BINDINGS, MOUSE_BINDINGS,
+    Action, AppAct, CommandMode, EguiState, UiState, WgpuFrame, KEY_BINDINGS, MOUSE_BINDINGS,
 };
 use std::{iter, sync::Arc};
+use strum_macros::EnumIter;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::*;
 use winit::event_loop::EventLoop;
@@ -301,5 +302,17 @@ impl App {
             _ => tracing::info!("Other action!"),
         }
         //     }
+    }
+
+    pub fn act(&mut self, act: &AppAct) {
+        match *act {
+            AppAct::Help => {}
+            AppAct::Menu => self.show_menu(),
+            AppAct::Decorations => self.toggle_decorations(),
+            AppAct::Fullscreen => self.toggle_fullscreen(),
+            AppAct::Maximize => self.toggle_maximize(),
+            AppAct::Minimize => self.minimize(),
+            AppAct::Be => tracing::info!("No action taken."),
+        }
     }
 }

@@ -196,6 +196,26 @@ impl Tree {
             }
         }
     }
+
+    pub fn select_next_node(&mut self) {
+        let _ = self.next_node();
+        self.select_current();
+    }
+
+    pub fn select_previous_node(&mut self) {
+        let _ = self.previous_node();
+        self.select_current();
+    }
+
+    pub fn select_next_window(&mut self) {
+        let _ = self.next_window();
+        self.select_current();
+    }
+
+    pub fn select_previous_window(&mut self) {
+        let _ = self.previous_window();
+        self.select_current();
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

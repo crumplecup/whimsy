@@ -1,52 +1,106 @@
+use crate::prelude::{Act, AppAct, EguiAct, Stringly};
 use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, space0};
 use nom::combinator::opt;
 use nom::sequence::delimited;
 use nom::IResult;
 use polite::{FauxPas, Polite};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::prelude::*;
-use std::path::Path;
-use toml::Table;
+use strum_macros::EnumIter;
+use toml::{Table, Value};
 use tracing::{info, trace, warn};
 use winit::keyboard::ModifiersState;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub enum Modifiers {
-    Control,
-    Alt,
-    Shift,
-    Space,
-    Tab,
-    Super,
+#[derive(
+    Debug, Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Deserialize, Serialize,
+)]
+pub struct Modifiers {
+    pub shift_key: bool,
+    pub control_key: bool,
+    pub alt_key: bool,
+    pub super_key: bool,
 }
 
 impl Modifiers {
-    pub fn from_str(input: &str) -> Option<Self> {
-        match input {
-            "cr" => Some(Self::Control),
-            "control" => Some(Self::Control),
-            "alt" => Some(Self::Alt),
-            "shift" => Some(Self::Shift),
-            "space" => Some(Self::Space),
-            "tab" => Some(Self::Tab),
-            "super" => Some(Self::Super),
-            _ => None,
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn is_none(&self) -> bool {
+        self.shift_key && self.control_key && self.alt_key && self.super_key
+    }
+
+    pub fn and(&mut self, other: &Modifiers) {
+        if other.shift_key {
+            self.shift_key = true;
         }
+        if other.control_key {
+            self.control_key = true;
+        }
+        if other.alt_key {
+            self.alt_key = true;
+        }
+        if other.super_key {
+            self.super_key = true;
+        }
+    }
+}
+
+impl From<&ModifiersState> for Modifiers {
+    fn from(mods: &ModifiersState) -> Self {
+        let mut result = Self::new();
+        if mods.shift_key() {
+            result.shift_key = true;
+        }
+        if mods.control_key() {
+            result.control_key = true;
+        }
+        if mods.alt_key() {
+            result.alt_key = true;
+        }
+        if mods.super_key() {
+            result.super_key = true;
+        }
+        result
+    }
+}
+
+impl From<&Option<ModifiersState>> for Modifiers {
+    fn from(mods: &Option<ModifiersState>) -> Self {
+        let mut m = Modifiers::new();
+        if let Some(n) = mods {
+            m = n.into();
+        }
+        m
+    }
+}
+
+impl From<&Command> for Modifiers {
+    fn from(cmd: &Command) -> Self {
+        Self::from(cmd.mods)
     }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct Command {
-    key: String,
-    mods: Option<ModifiersState>,
+    pub key: String,
+    pub mods: Modifiers,
 }
 
 impl Command {
-    pub fn new(key: &str, mods: &Option<ModifiersState>) -> Self {
-        let key = key.to_owned();
-        let mods = mods.to_owned();
-        Self { key, mods }
+    pub fn new(key: &str, mods: &ModifiersState) -> Self {
+        Self {
+            key: key.to_owned(),
+            mods: mods.into(),
+        }
+    }
+
+    pub fn with_modifier(key: &str, mods: &Modifiers) -> Self {
+        Self {
+            key: key.to_owned(),
+            mods: mods.to_owned(),
+        }
     }
 
     pub fn into_mods(input: &str) -> Option<ModifiersState> {
@@ -60,15 +114,13 @@ impl Command {
         }
     }
 
-    pub fn parse_str(input: &str) -> IResult<&str, Option<Self>> {
-        let (rem, mods) = opt(Self::parse_mods)(input)?;
-        let (rem, key) = Self::word(rem)?;
-        if let Some(val) = mods {
-            let command = Command::new(key, &val);
-            Ok((rem, Some(command)))
+    pub fn is_modifier(input: &str) -> IResult<&str, bool> {
+        let (input, _) = Self::separator(input)?;
+        let (_, mods) = opt(Self::parse_mod)(input)?;
+        if let Some(_) = mods {
+            Ok((input, true))
         } else {
-            let command = Command::new(key, &None);
-            Ok((rem, Some(command)))
+            Ok((input, false))
         }
     }
 
@@ -77,57 +129,60 @@ impl Command {
         alphanumeric1(rem)
     }
 
-    pub fn parse_mods(input: &str) -> IResult<&str, Option<ModifiersState>> {
+    pub fn separator(input: &str) -> IResult<&str, bool> {
+        let mut separated = false;
+        let (rem, _) = space0(input)?;
+        let (rem, sep) = opt(tag("+"))(rem)?;
+        if let Some(s) = sep {
+            separated = true;
+        }
+        let (rem, _) = space0(rem)?;
+        Ok((rem, separated))
+    }
+
+    pub fn parse_mod(input: &str) -> IResult<&str, Option<ModifiersState>> {
+        let (input, _) = Self::separator(input)?;
         let (rem, bracketed) = delimited(tag("<"), alphanumeric1, tag(">"))(input)?;
-        trace!("Bracketed: {}", bracketed);
+        let (rem, _) = Self::separator(rem)?;
         let bracketed = Self::into_mods(bracketed);
-        trace!("Remaining: {}", rem);
-        let (rem, _) = space0(rem)?;
-        let (rem, _) = tag("+")(rem)?;
-        let (rem, _) = space0(rem)?;
         Ok((rem, bracketed))
     }
 
-    pub fn from_str(value: &str) -> Option<Command> {
-        if value.len() > 1 {
-            warn!("Modifiers not supported.");
-            None
-        } else {
-            match value {
-                "" => {
-                    warn!("Empty command detected.");
-                    None
-                }
-                key => Some(Self {
-                    key: key.to_owned(),
-                    mods: None,
-                }),
+    pub fn parse_mods(input: &str) -> IResult<&str, Modifiers> {
+        let mut modifiers = Modifiers::new();
+        let mut i = input;
+        let (_, mut more) = Self::is_modifier(i)?;
+        while more {
+            let (rem, m) = Self::parse_mod(i)?;
+            modifiers.and(&Modifiers::from(&m));
+            let (_, check) = Self::is_modifier(rem)?;
+            more = check;
+            i = rem;
+        }
+        Ok((i, modifiers))
+    }
+
+    pub fn parse_str(input: &str) -> IResult<&str, Option<Self>> {
+        let (rem, mods) = Self::parse_mods(input)?;
+        let (rem, key) = Self::word(rem)?;
+        let command = Command::with_modifier(key, &mods);
+        Ok((rem, Some(command)))
+    }
+
+    pub fn parse_cmd(input: &str) -> Polite<Self> {
+        let (rem, opt) = Self::parse_str(input)?;
+        if let Some(mut cmd) = opt {
+            if cmd.key == cmd.key.to_uppercase() {
+                cmd.mods.shift_key = true;
             }
+            Ok(cmd)
+        } else {
+            Err(FauxPas::Nom(rem.to_string()))
         }
     }
-}
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub enum Act {
-    Right,
-    Left,
-    Up,
-    Down,
-    Next,
-    Previous,
-}
-
-impl Act {
-    pub fn from_str(key: &str) -> Option<Self> {
-        match key {
-            "right" => Some(Self::Right),
-            "left" => Some(Self::Left),
-            "up" => Some(Self::Up),
-            "down" => Some(Self::Down),
-            "next" => Some(Self::Next),
-            "previous" => Some(Self::Previous),
-            _ => None,
-        }
+    pub fn act(&self, trigger: &Command) -> bool {
+        self == trigger
     }
 }
 
@@ -138,10 +193,10 @@ pub enum CommandOptions {
 }
 
 impl CommandOptions {
-    pub fn with_act(&mut self, act: Act) {
+    pub fn with_act<T: Into<Act>>(&mut self, act: T) {
         match self {
             Self::Commands(_) => warn!("Not an Acts variant!"),
-            Self::Acts(acts) => acts.push(act),
+            Self::Acts(acts) => acts.push(act.into()),
         }
     }
 
@@ -153,17 +208,24 @@ impl CommandOptions {
     }
 }
 
-impl From<Act> for CommandOptions {
-    fn from(act: Act) -> Self {
+impl<T: Into<Act>> From<T> for CommandOptions {
+    fn from(act: T) -> Self {
         let mut acts = Vec::new();
-        acts.push(act);
+        acts.push(act.into());
         Self::Acts(acts)
     }
 }
 
-impl From<Vec<Act>> for CommandOptions {
-    fn from(acts: Vec<Act>) -> Self {
-        Self::Acts(acts)
+impl<T: Into<Act> + Clone> From<&[T]> for CommandOptions {
+    fn from(acts: &[T]) -> Self {
+        let a = acts.iter().map(|v| v.clone().into()).collect::<Vec<Act>>();
+        Self::Acts(a)
+    }
+}
+
+impl<T: Into<Act> + Clone> From<Vec<T>> for CommandOptions {
+    fn from(acts: Vec<T>) -> Self {
+        Self::from(&acts[..])
     }
 }
 
@@ -213,47 +275,57 @@ impl Choices {
         Self::default()
     }
 
+    pub fn from_toml<T: Into<Act> + Clone + Stringly>(value: &Value) -> Polite<Self> {
+        info!("{:#?}", value);
+        match value {
+            Value::Table(t) => {
+                let mut choices = HashMap::new();
+                let command_queue = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
+                for key in command_queue {
+                    info!("Reading {}", &key);
+                    if let Value::String(s) = &value[&key] {
+                        let s = s.to_owned();
+                        let command = Command::parse_cmd(&s)?;
+                        info!("Command result: {:#?}", &command);
+                        let act = T::from_str(&key);
+                        if let Some(a) = act {
+                            let opts = CommandOptions::from(vec![a]);
+                            choices.insert(command, opts);
+                        }
+                    }
+                }
+                Ok(Self(choices))
+            }
+            v => {
+                info!("Command not recognized: {}", v);
+                Err(FauxPas::Unknown)
+            }
+        }
+    }
+
     pub fn with_config() -> Polite<Self> {
-        let mut choices = HashMap::new();
         let config = include_bytes!("../../config.toml");
         trace!("Config read: {} u8.", config.len());
         let stringly = String::from_utf8_lossy(config);
         let config = stringly.parse::<Table>().unwrap();
         trace!("Config read: {}", config);
         // let command_queue = vec!["right", "left", "up", "down"];
-        let commands = &config["commands"];
-        match commands {
-            toml::Value::Table(tab) => {
-                let command_queue = tab.keys().map(|k| k.clone()).collect::<Vec<String>>();
-                for key in command_queue {
-                    info!("Reading {}", &key);
-                    if let toml::Value::String(s) = &commands[&key] {
-                        let s = s.to_owned();
-                        let command = match Command::parse_str(&s) {
-                            Ok((_, c)) => Ok(c),
-                            Err(_) => Err(FauxPas::Unknown),
-                            // Err(e) => Err(FauxPas::from(e)),
-                        };
-                        let command = command?;
-                        let act = Act::from_str(&key);
-                        if let Some(a) = act {
-                            let mut vec = Vec::new();
-                            vec.push(a);
-                            let opts = CommandOptions::Acts(vec);
-                            if let Some(c) = command {
-                                choices.insert(c, opts);
-                            }
-                        }
-                    }
-                }
-            }
-            _ => info!("Commands not a toml table."),
-        }
+        let egui = &config["egui"];
+        let winit = &config["winit"];
+        let mut choices = Self::from_toml::<EguiAct>(&egui)?;
+        let winit = Self::from_toml::<AppAct>(&winit)?;
+        choices.value_mut().extend(winit.value().clone());
         trace!("Choices: {:#?}", choices);
-        Ok(Self(choices))
+        Ok(choices)
     }
 
     pub fn value(&self) -> &HashMap<Command, CommandOptions> {
+        match self {
+            Self(data) => data,
+        }
+    }
+
+    pub fn value_mut(&mut self) -> &mut HashMap<Command, CommandOptions> {
         match self {
             Self(data) => data,
         }
