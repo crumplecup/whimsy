@@ -1,6 +1,5 @@
 use egui::{Align, Layout, Sense, Slider, Ui};
 use egui_extras::{Column, TableBuilder};
-use spreadsheet::prelude::{BeaData, BeaDatum};
 use std::collections::HashSet;
 use std::marker::PhantomData;
 
@@ -76,7 +75,7 @@ impl<T: Tabular<U>, U: Columnar> TableView<T, U> {
 
         table
             .header(20.0, |mut header| {
-                let names = BeaData::names();
+                let names = T::headers();
                 names
                     .iter()
                     .map(|v| {
@@ -104,10 +103,6 @@ impl<T: Tabular<U>, U: Columnar> TableView<T, U> {
                 }
             });
     }
-
-    // pub fn show(&self, ui: &mut Ui) {
-    //     self.data.table(ui);
-    // }
 }
 
 pub trait Tabular<T: Columnar> {
@@ -118,27 +113,7 @@ pub trait Tabular<T: Columnar> {
     }
 }
 
-impl Tabular<BeaDatum> for BeaData {
-    fn headers() -> Vec<String> {
-        BeaDatum::names()
-    }
-
-    fn rows(&self) -> Vec<BeaDatum> {
-        self.records()
-    }
-}
-
 pub trait Columnar {
     fn names() -> Vec<String>;
     fn values(&self) -> Vec<String>;
-}
-
-impl Columnar for BeaDatum {
-    fn names() -> Vec<String> {
-        Self::names()
-    }
-
-    fn values(&self) -> Vec<String> {
-        Self::columns(self)
-    }
 }

@@ -34,7 +34,7 @@ proj = "0.27.2"
 rayon = "1.10.0"
 serde = { version = "1.0.197", features = ["derive"] }
 shapefile = "0.6.0"
-spreadsheet = { git = "https://github.com/grantspassoregon/spreadsheet.git" }
+# spreadsheet = { git = "https://github.com/grantspassoregon/spreadsheet.git" }
 strum = { version = "0.26.2", features = ["strum_macros", "derive"] }
 strum_macros = "0.26.2"
 tokio = { version = "1.36.0", features = ["tokio-macros", "full"] }
@@ -42,5 +42,5 @@ toml = "0.8.12"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 uuid = { version = "1.8.0", features = ["serde", "v4"] }
-wgpu = "0.19.3"
+wgpu = "0.19.4"
 winit = { version = "0.29.15", features = ["serde"]}

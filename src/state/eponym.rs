@@ -23,6 +23,7 @@ pub struct App {
     /// Cursor position over the window.
     pub cursor_position: Option<PhysicalPosition<f64>>,
     pub command: CommandMode,
+    pub command_key: String,
 }
 
 impl App {
@@ -108,6 +109,7 @@ impl App {
             theme,
             cursor_position: Default::default(),
             command,
+            command_key: "normal".to_string(),
         }
     }
 

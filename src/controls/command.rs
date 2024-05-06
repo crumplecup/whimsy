@@ -1,4 +1,4 @@
-use crate::prelude::{Act, AppAct, EguiAct, Stringly};
+use crate::prelude::{Act, AppAct, EguiAct, Stringly, NamedAct};
 use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, space0};
 use nom::combinator::opt;
@@ -7,7 +7,7 @@ use nom::IResult;
 use polite::{FauxPas, Polite};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use strum_macros::EnumIter;
+use strum::IntoEnumIterator;
 use toml::{Table, Value};
 use tracing::{info, trace, warn};
 use winit::keyboard::ModifiersState;
@@ -82,7 +82,7 @@ impl From<&Command> for Modifiers {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Deserialize, Serialize)]
 pub struct Command {
     pub key: String,
     pub mods: Modifiers,
@@ -133,7 +133,7 @@ impl Command {
         let mut separated = false;
         let (rem, _) = space0(input)?;
         let (rem, sep) = opt(tag("+"))(rem)?;
-        if let Some(s) = sep {
+        if let Some(_) = sep {
             separated = true;
         }
         let (rem, _) = space0(rem)?;
@@ -184,11 +184,51 @@ impl Command {
     pub fn act(&self, trigger: &Command) -> bool {
         self == trigger
     }
+
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+impl From<&winit::keyboard::NamedKey> for Command {
+    fn from(named: &winit::keyboard::NamedKey) -> Self {
+        let mods = ModifiersState::default();
+        match named {
+            winit::keyboard::NamedKey::Enter => Self::new("enter", &mods),
+            winit::keyboard::NamedKey::Escape => Self::new("escape", &mods),
+            winit::keyboard::NamedKey::ArrowLeft => Self::new("arrow_left", &mods),
+            winit::keyboard::NamedKey::ArrowRight => Self::new("arrow_right", &mods),
+            winit::keyboard::NamedKey::ArrowUp => Self::new("arrow_up", &mods),
+            winit::keyboard::NamedKey::ArrowDown => Self::new("arrow_down", &mods),
+            _ => Self::default(),
+        }
+    }
+}
+
+impl From<&winit::keyboard::Key> for Command {
+    fn from(named: &winit::keyboard::Key) -> Self {
+        match named {
+            winit::keyboard::Key::Named(k) => Self::from(k),
+            _ => Self::default(),
+        }
+    }
+}
+
+impl From<&NamedAct> for Command {
+    fn from(act: &NamedAct) -> Self {
+        let mods = ModifiersState::default();
+        match act {
+            NamedAct::Enter => Self::new("enter", &mods),
+            NamedAct::Escape => Self::new("escape", &mods),
+            NamedAct::ArrowLeft => Self::new("arrow_left", &mods),
+            NamedAct::ArrowRight => Self::new("arrow_right", &mods),
+            NamedAct::ArrowUp => Self::new("arrow_up", &mods),
+            NamedAct::ArrowDown => Self::new("arrow_down", &mods),
+            NamedAct::Be => Self::new("be", &mods),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Deserialize, Serialize)]
 pub enum CommandOptions {
-    Commands(Vec<Command>),
+    Commands(CommandGroup),
     Acts(Vec<Act>),
 }
 
@@ -200,12 +240,12 @@ impl CommandOptions {
         }
     }
 
-    pub fn with_command(&mut self, command: Command) {
-        match self {
-            Self::Commands(commands) => commands.push(command),
-            Self::Acts(_) => warn!("Not a Commands variant!"),
-        }
-    }
+    // pub fn with_command(&mut self, command: Command) {
+    //     match self {
+    //         Self::Commands(commands) => commands.commands.push(command),
+    //         Self::Acts(_) => warn!("Not a Commands variant!"),
+    //     }
+    // }
 }
 
 impl<T: Into<Act>> From<T> for CommandOptions {
@@ -229,23 +269,98 @@ impl<T: Into<Act> + Clone> From<Vec<T>> for CommandOptions {
     }
 }
 
-impl From<Command> for CommandOptions {
-    fn from(command: Command) -> Self {
-        let mut commands = Vec::new();
-        commands.push(command);
+impl From<CommandGroup> for CommandOptions {
+    fn from(commands: CommandGroup) -> Self {
         Self::Commands(commands)
     }
 }
 
-impl From<Vec<Command>> for CommandOptions {
-    fn from(commands: Vec<Command>) -> Self {
-        Self::Commands(commands)
+// impl From<Vec<Command>> for CommandOptions {
+//     fn from(commands: Vec<Command>) -> Self {
+//         Self::Commands(commands)
+//     }
+// }
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+pub struct CommandList(Vec<Command>);
+
+// impl CommandList {
+//     pub fn from_toml()
+// }
+
+
+/// Names a user-defined custom mapping defined in the config toml as base name **id**.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+pub struct CommandGroup {
+    pub id: String,
+    pub name: String,
+    pub binding: Command,
+    pub help: String,
+}
+
+impl CommandGroup {
+    pub fn from_toml(id: &str, value: &Value) -> Option<Self> {
+        let mut name = None;
+        let mut binding = None;
+        let mut help = None;
+        info!("{:#?}", value);
+        match value {
+            Value::Table(t) => {
+                let command_queue = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
+                for key in command_queue {
+                    info!("Reading {}", &key);
+                    match key.as_ref() {
+                        "name" => {
+                            if let Value::String(s) = t[&key].clone() {
+                                name = Some(s);
+                            }
+                        },
+                        "binding" => {
+                            if let Value::String(s) = t[&key].clone() {
+                                match Command::parse_cmd(&s) {
+                                    Ok(cmd) => binding = Some(cmd),
+                                    Err(e) => info!("Error parsing binding: {}", e.to_string()),
+                                }
+                            }
+                        },
+                        "help" => {
+                            if let Value::String(s) = t[&key].clone() {
+                                help = Some(s);
+                            }
+                        },
+                        _ => {},
+
+                    }
+                }
+            },
+            v => {
+                info!("Command not recognized: {}", v);
+            },
+        }
+        if let Some(name) = name {
+            if let Some(binding) = binding {
+                if let Some(help) = help {
+                    Some(Self {
+                        id: id.to_string(),
+                        name,
+                        binding,
+                        help,
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub enum CommandMode {
-    Normal(Choices),
+    Normal(ChoiceMap),
 }
 
 impl CommandMode {
@@ -253,7 +368,7 @@ impl CommandMode {
         Self::default()
     }
 
-    pub fn choices(&self) -> &Choices {
+    pub fn choices(&self) -> &ChoiceMap {
         match self {
             Self::Normal(choices) => choices,
         }
@@ -262,17 +377,30 @@ impl CommandMode {
 
 impl Default for CommandMode {
     fn default() -> Self {
-        let choices = Choices::default();
-        Self::Normal(choices)
+        match ChoiceMap::with_config() {
+            Ok(choices) => Self::Normal(choices),
+            Err(e) => {
+                info!("Error loading choice map: {}", e.to_string());
+                Self::Normal(ChoiceMap::new())
+            }
+        }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Choices(HashMap<Command, CommandOptions>);
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct Choices(pub HashMap<Command, CommandOptions>);
 
 impl Choices {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn named(&mut self) -> Polite<()> {
+        let cmds = NamedAct::iter().map(|v| Command::from(&v));
+        let acts = NamedAct::iter();
+        cmds.zip(acts).map(|(c, a)| self.0.insert(c, a.into())).for_each(drop);
+
+        Ok(())
     }
 
     pub fn from_toml<T: Into<Act> + Clone + Stringly>(value: &Value) -> Polite<Self> {
@@ -303,21 +431,67 @@ impl Choices {
         }
     }
 
-    pub fn with_config() -> Polite<Self> {
-        let config = include_bytes!("../../config.toml");
-        trace!("Config read: {} u8.", config.len());
-        let stringly = String::from_utf8_lossy(config);
-        let config = stringly.parse::<Table>().unwrap();
-        trace!("Config read: {}", config);
-        // let command_queue = vec!["right", "left", "up", "down"];
-        let egui = &config["egui"];
-        let winit = &config["winit"];
-        let mut choices = Self::from_toml::<EguiAct>(&egui)?;
-        let winit = Self::from_toml::<AppAct>(&winit)?;
-        choices.value_mut().extend(winit.value().clone());
-        trace!("Choices: {:#?}", choices);
-        Ok(choices)
+    /// If any of the base names defined in the config toml map to an [`Act`], and the value
+    /// associated with the name parses to a valid ['Command'], then it returns a [`Choices`]
+    /// containing the name/value pair.
+    pub fn try_from_toml(value: &Value) -> Option<Self> {
+        let mut choices = Choices::new();
+        if let Ok(entry) = Self::from_toml::<AppAct>(value) {
+            choices.value_mut().extend(entry.value().clone());
+        }
+        if let Ok(entry) = Self::from_toml::<EguiAct>(value) {
+            choices.value_mut().extend(entry.value().clone());
+        }
+        if let Ok(entry) = Self::from_toml::<NamedAct>(value) {
+            choices.value_mut().extend(entry.value().clone());
+        }
+        if choices.value().is_empty() {
+            None
+        } else {
+            Some(choices)
+        }
     }
+
+
+    pub fn command_group(&mut self, value: &Value) -> Polite<()> {
+        info!("{:#?}", value);
+        match value {
+            Value::Table(t) => {
+                let command_queue = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
+
+                for key in command_queue {
+                    info!("Reading {}", &key);
+                    let group = CommandGroup::from_toml(&key, &t[&key]);
+                    if let Some(cmds) = group {
+                        self.0.insert(cmds.binding.clone(), CommandOptions::from(cmds.clone()));
+                        info!("Added {}", cmds.name);
+                    }
+                }
+            },
+            v => {
+                info!("Command not recognized: {}", v);
+            },
+        }
+
+        Ok(())
+    }
+
+    // pub fn with_config() -> Polite<Self> {
+    //     let config = include_bytes!("../../config.toml");
+    //     trace!("Config read: {} u8.", config.len());
+    //     let stringly = String::from_utf8_lossy(config);
+    //     let config = stringly.parse::<Table>().unwrap();
+    //     trace!("Config read: {}", config);
+    //     let mut choice_map = ChoiceMap::new();
+    //     let groups = &config["groups"];
+    //     if let Some(c) = ChoiceMap::from_toml(groups) {
+    //         choice_map.0.extend(c.0);
+    //     }
+    //     let commands = &config["commands"];
+    //     choice_map.command_group(&commands)?;
+    //     trace!("Choices: {:#?}", choice_map);
+    //     Ok(choice_map)
+    // }
 
     pub fn value(&self) -> &HashMap<Command, CommandOptions> {
         match self {
@@ -334,6 +508,85 @@ impl Choices {
 
 impl Default for Choices {
     fn default() -> Self {
-        Choices::with_config().unwrap()
+        // Choices::with_config().unwrap()
+        let hm = HashMap::new();
+        Self(hm)
     }
 }
+
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct ChoiceMap(pub HashMap<String, Choices>);
+
+impl ChoiceMap {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn from_toml(value: &Value) -> Option<Self> {
+        let mut choice_map = ChoiceMap::new();
+        info!("{:#?}", value);
+        match value {
+            Value::Table(t) => {
+                let keys = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
+                for key in keys {
+                    if let Some(c) = Choices::try_from_toml(&t[&key]) {
+                        choice_map.0.insert(key, c);
+                    }
+                }
+            },
+            v => {
+                info!("Choices not recognized: {}", v);
+            },
+        }
+        if choice_map.0.is_empty() {
+            None
+        } else {
+            Some(choice_map)
+        }
+    }
+
+    pub fn with_config() -> Polite<Self> {
+        let config = include_bytes!("../../config.toml");
+        trace!("Config read: {} u8.", config.len());
+        let stringly = String::from_utf8_lossy(config);
+        let config = stringly.parse::<Table>().unwrap();
+        trace!("Config read: {}", config);
+        let mut choice_map = ChoiceMap::new();
+        let groups = &config["groups"];
+        if let Some(c) = ChoiceMap::from_toml(groups) {
+            choice_map.0.extend(c.0);
+        }
+        let commands = &config["commands"];
+        choice_map.command_group(&commands)?;
+        trace!("Choices: {:#?}", choice_map);
+        Ok(choice_map)
+    }
+
+    pub fn command_group(&mut self, value: &Value) -> Polite<()> {
+        info!("{:#?}", value);
+        match value {
+            Value::Table(t) => {
+                let command_queue = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
+
+                for key in command_queue {
+                    info!("Reading {}", &key);
+                    if let Some(_) = self.0.get(&key) {
+                        let group = CommandGroup::from_toml(&key, &t[&key]);
+                        if let Some(cmds) = group {
+                            if let Some(normal) = self.0.get_mut("normal") {
+                                normal.0.insert(cmds.binding.clone(), CommandOptions::from(cmds));
+                            }
+                        }
+                    }
+                }
+            },
+            v => {
+                info!("Command not recognized: {}", v);
+            },
+        }
+
+        Ok(())
+    }
+}
+

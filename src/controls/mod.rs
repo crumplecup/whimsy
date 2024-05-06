@@ -6,7 +6,7 @@ pub mod focus;
 pub mod key_bindings;
 pub mod mouse_bindings;
 
-pub use act::{Act, AppAct, EguiAct, Stringly};
+pub use act::{Act, AppAct, EguiAct, Stringly, NamedAct};
 pub use actions::Action;
 pub use binding::Binding;
 pub use command::{Choices, Command, CommandMode, CommandOptions, Modifiers};
