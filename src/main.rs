@@ -1,10 +1,11 @@
+use polite::Polite;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use whimsy::prelude::run;
+use whimsy::prelude::App;
 // pub mod run_ui;
 // pub mod state;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Polite<()> {
     if tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -16,11 +17,7 @@ async fn main() {
     {};
     tracing::info!("Subscriber initialized.");
 
-    let event_loop = winit::event_loop::EventLoop::new().unwrap();
-    let window = winit::window::WindowBuilder::new()
-        .with_title("Whimsy")
-        .build(&event_loop)
-        .unwrap();
-
-    run(window, event_loop).await;
+    let (app, event_loop) = App::boot().await?;
+    app.run(event_loop).await?;
+    Ok(())
 }

@@ -1,4 +1,6 @@
-use crate::prelude::{Act, AppAct, EguiAct, Stringly, NamedAct};
+use crate::prelude::{
+    Act, AppAct, Columnar, EguiAct, Filtration, NamedAct, TableConfig, TableView, Tabular,
+};
 use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, space0};
 use nom::combinator::opt;
@@ -7,9 +9,11 @@ use nom::IResult;
 use polite::{FauxPas, Polite};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::{fmt, ops};
 use strum::IntoEnumIterator;
 use toml::{Table, Value};
 use tracing::{info, trace, warn};
+use uuid::Uuid;
 use winit::keyboard::ModifiersState;
 
 #[derive(
@@ -44,6 +48,25 @@ impl Modifiers {
         if other.super_key {
             self.super_key = true;
         }
+    }
+}
+
+impl fmt::Display for Modifiers {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut mods = String::new();
+        if self.super_key {
+            mods.push_str("<⌘> + ");
+        }
+        if self.control_key {
+            mods.push_str("<Cr> + ");
+        }
+        if self.alt_key {
+            mods.push_str("<Alt> + ");
+        }
+        if self.shift_key {
+            mods.push_str("<Sh> + ");
+        }
+        write!(f, "{mods}")
     }
 }
 
@@ -184,19 +207,29 @@ impl Command {
     pub fn act(&self, trigger: &Command) -> bool {
         self == trigger
     }
+}
 
+impl fmt::Display for Command {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if !self.mods.is_none() {
+            let mods = self.mods.to_string();
+            write!(f, "{}{}", mods, self.key)
+        } else {
+            write!(f, "{}", self.key)
+        }
+    }
 }
 
 impl From<&winit::keyboard::NamedKey> for Command {
     fn from(named: &winit::keyboard::NamedKey) -> Self {
         let mods = ModifiersState::default();
         match named {
-            winit::keyboard::NamedKey::Enter => Self::new("enter", &mods),
-            winit::keyboard::NamedKey::Escape => Self::new("escape", &mods),
-            winit::keyboard::NamedKey::ArrowLeft => Self::new("arrow_left", &mods),
-            winit::keyboard::NamedKey::ArrowRight => Self::new("arrow_right", &mods),
-            winit::keyboard::NamedKey::ArrowUp => Self::new("arrow_up", &mods),
-            winit::keyboard::NamedKey::ArrowDown => Self::new("arrow_down", &mods),
+            winit::keyboard::NamedKey::Enter => Self::new("Enter", &mods),
+            winit::keyboard::NamedKey::Escape => Self::new("Escape", &mods),
+            winit::keyboard::NamedKey::ArrowLeft => Self::new("ArrowLeft", &mods),
+            winit::keyboard::NamedKey::ArrowRight => Self::new("ArrowRight", &mods),
+            winit::keyboard::NamedKey::ArrowUp => Self::new("ArrowUp", &mods),
+            winit::keyboard::NamedKey::ArrowDown => Self::new("ArrowDown", &mods),
             _ => Self::default(),
         }
     }
@@ -248,6 +281,15 @@ impl CommandOptions {
     // }
 }
 
+impl std::string::ToString for CommandOptions {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Commands(group) => group.name(),
+            Self::Acts(acts) => acts[0].to_string(),
+        }
+    }
+}
+
 impl<T: Into<Act>> From<T> for CommandOptions {
     fn from(act: T) -> Self {
         let mut acts = Vec::new();
@@ -275,27 +317,22 @@ impl From<CommandGroup> for CommandOptions {
     }
 }
 
-// impl From<Vec<Command>> for CommandOptions {
-//     fn from(commands: Vec<Command>) -> Self {
-//         Self::Commands(commands)
-//     }
-// }
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 pub struct CommandList(Vec<Command>);
-
-// impl CommandList {
-//     pub fn from_toml()
-// }
-
 
 /// Names a user-defined custom mapping defined in the config toml as base name **id**.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 pub struct CommandGroup {
+    /// The table name used in the configuration file to identify the command group.
     pub id: String,
+    /// Display name for the command window.
     pub name: String,
+    /// Trigger associated with the group.
     pub binding: Command,
+    /// Intended for hover or reader descriptions.
     pub help: String,
+    /// The [`TableView`] uses `row_id` field to track over changes in row ordering.
+    pub row_id: Uuid,
 }
 
 impl CommandGroup {
@@ -303,48 +340,49 @@ impl CommandGroup {
         let mut name = None;
         let mut binding = None;
         let mut help = None;
-        info!("{:#?}", value);
+        trace!("{:#?}", value);
         match value {
             Value::Table(t) => {
                 let command_queue = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
                 for key in command_queue {
-                    info!("Reading {}", &key);
+                    trace!("Reading {}", &key);
                     match key.as_ref() {
                         "name" => {
                             if let Value::String(s) = t[&key].clone() {
                                 name = Some(s);
                             }
-                        },
+                        }
                         "binding" => {
                             if let Value::String(s) = t[&key].clone() {
                                 match Command::parse_cmd(&s) {
                                     Ok(cmd) => binding = Some(cmd),
-                                    Err(e) => info!("Error parsing binding: {}", e.to_string()),
+                                    Err(e) => trace!("Error parsing binding: {}", e.to_string()),
                                 }
                             }
-                        },
+                        }
                         "help" => {
                             if let Value::String(s) = t[&key].clone() {
                                 help = Some(s);
                             }
-                        },
-                        _ => {},
-
+                        }
+                        _ => {}
                     }
                 }
-            },
+            }
             v => {
-                info!("Command not recognized: {}", v);
-            },
+                trace!("Command not recognized: {}", v);
+            }
         }
         if let Some(name) = name {
             if let Some(binding) = binding {
                 if let Some(help) = help {
+                    let row_id = Uuid::new_v4();
                     Some(Self {
                         id: id.to_string(),
                         name,
                         binding,
                         help,
+                        row_id,
                     })
                 } else {
                     None
@@ -355,6 +393,26 @@ impl CommandGroup {
         } else {
             None
         }
+    }
+
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+}
+
+impl Columnar for CommandGroup {
+    fn names() -> Vec<String> {
+        vec!["Command".to_string(), "Act".to_string()]
+    }
+
+    fn values(&self) -> Vec<String> {
+        let command = self.binding.to_string();
+        let act = self.name.clone();
+        vec![command, act]
+    }
+
+    fn id(&self) -> &Uuid {
+        &self.row_id
     }
 }
 
@@ -380,7 +438,7 @@ impl Default for CommandMode {
         match ChoiceMap::with_config() {
             Ok(choices) => Self::Normal(choices),
             Err(e) => {
-                info!("Error loading choice map: {}", e.to_string());
+                trace!("Error loading choice map: {}", e.to_string());
                 Self::Normal(ChoiceMap::new())
             }
         }
@@ -398,13 +456,16 @@ impl Choices {
     pub fn named(&mut self) -> Polite<()> {
         let cmds = NamedAct::iter().map(|v| Command::from(&v));
         let acts = NamedAct::iter();
-        cmds.zip(acts).map(|(c, a)| self.0.insert(c, a.into())).for_each(drop);
+        cmds.zip(acts)
+            .map(|(c, a)| self.0.insert(c, a.into()))
+            .for_each(drop);
 
         Ok(())
     }
 
-    pub fn from_toml<T: Into<Act> + Clone + Stringly>(value: &Value) -> Polite<Self> {
-        info!("{:#?}", value);
+    pub fn from_toml<T: Clone + std::str::FromStr>(value: &Value) -> Polite<Self> {
+        use std::str::FromStr;
+        trace!("{:#?}", value);
         match value {
             Value::Table(t) => {
                 let mut choices = HashMap::new();
@@ -415,17 +476,26 @@ impl Choices {
                         let s = s.to_owned();
                         let command = Command::parse_cmd(&s)?;
                         info!("Command result: {:#?}", &command);
-                        let act = T::from_str(&key);
-                        if let Some(a) = act {
-                            let opts = CommandOptions::from(vec![a]);
-                            choices.insert(command, opts);
+                        match Act::from_str(&key) {
+                            Ok(act) => {
+                                let opts = CommandOptions::from(vec![act]);
+                                choices.insert(command, opts);
+                            }
+                            Err(_) => {
+                                info!("Command not recognized.");
+                            }
                         }
+                        // let act = T::from_str(&key)?;
+                        // if let Some(a) = act {
+                        //     let opts = CommandOptions::from(vec![a]);
+                        //     choices.insert(command, opts);
+                        // }
                     }
                 }
                 Ok(Self(choices))
             }
             v => {
-                info!("Command not recognized: {}", v);
+                trace!("Command not recognized: {}", v);
                 Err(FauxPas::Unknown)
             }
         }
@@ -452,46 +522,29 @@ impl Choices {
         }
     }
 
-
     pub fn command_group(&mut self, value: &Value) -> Polite<()> {
-        info!("{:#?}", value);
+        trace!("{:#?}", value);
         match value {
             Value::Table(t) => {
                 let command_queue = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
 
                 for key in command_queue {
-                    info!("Reading {}", &key);
+                    trace!("Reading {}", &key);
                     let group = CommandGroup::from_toml(&key, &t[&key]);
                     if let Some(cmds) = group {
-                        self.0.insert(cmds.binding.clone(), CommandOptions::from(cmds.clone()));
-                        info!("Added {}", cmds.name);
+                        self.0
+                            .insert(cmds.binding.clone(), CommandOptions::from(cmds.clone()));
+                        trace!("Added {}", cmds.name);
                     }
                 }
-            },
+            }
             v => {
-                info!("Command not recognized: {}", v);
-            },
+                trace!("Command not recognized: {}", v);
+            }
         }
 
         Ok(())
     }
-
-    // pub fn with_config() -> Polite<Self> {
-    //     let config = include_bytes!("../../config.toml");
-    //     trace!("Config read: {} u8.", config.len());
-    //     let stringly = String::from_utf8_lossy(config);
-    //     let config = stringly.parse::<Table>().unwrap();
-    //     trace!("Config read: {}", config);
-    //     let mut choice_map = ChoiceMap::new();
-    //     let groups = &config["groups"];
-    //     if let Some(c) = ChoiceMap::from_toml(groups) {
-    //         choice_map.0.extend(c.0);
-    //     }
-    //     let commands = &config["commands"];
-    //     choice_map.command_group(&commands)?;
-    //     trace!("Choices: {:#?}", choice_map);
-    //     Ok(choice_map)
-    // }
 
     pub fn value(&self) -> &HashMap<Command, CommandOptions> {
         match self {
@@ -514,7 +567,8 @@ impl Default for Choices {
     }
 }
 
-
+/// A context map relating different groups of keyboard mappings with an associated command
+/// trigger.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ChoiceMap(pub HashMap<String, Choices>);
 
@@ -525,7 +579,7 @@ impl ChoiceMap {
 
     pub fn from_toml(value: &Value) -> Option<Self> {
         let mut choice_map = ChoiceMap::new();
-        info!("{:#?}", value);
+        trace!("{:#?}", value);
         match value {
             Value::Table(t) => {
                 let keys = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
@@ -534,10 +588,10 @@ impl ChoiceMap {
                         choice_map.0.insert(key, c);
                     }
                 }
-            },
+            }
             v => {
-                info!("Choices not recognized: {}", v);
-            },
+                trace!("Choices not recognized: {}", v);
+            }
         }
         if choice_map.0.is_empty() {
             None
@@ -564,29 +618,266 @@ impl ChoiceMap {
     }
 
     pub fn command_group(&mut self, value: &Value) -> Polite<()> {
-        info!("{:#?}", value);
+        trace!("{:#?}", value);
         match value {
             Value::Table(t) => {
                 let command_queue = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
 
                 for key in command_queue {
-                    info!("Reading {}", &key);
+                    trace!("Reading {}", &key);
                     if let Some(_) = self.0.get(&key) {
                         let group = CommandGroup::from_toml(&key, &t[&key]);
                         if let Some(cmds) = group {
                             if let Some(normal) = self.0.get_mut("normal") {
-                                normal.0.insert(cmds.binding.clone(), CommandOptions::from(cmds));
+                                normal
+                                    .0
+                                    .insert(cmds.binding.clone(), CommandOptions::from(cmds));
                             }
                         }
                     }
                 }
-            },
+            }
             v => {
-                info!("Command not recognized: {}", v);
-            },
+                trace!("Command not recognized: {}", v);
+            }
         }
 
         Ok(())
     }
 }
 
+/// The `CommandRow` struct represents a choice from [`Choices`] as a table row for display.
+/// The `CommandRow` struct implements the [`Columnar`] trait for use in a [`TableView`].
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+pub struct CommandRow {
+    /// The `id` field holds a [`Uuid`] for use by the [`TableView`].
+    id: Uuid,
+    /// The `command` field is the string representation of a command.
+    command: String,
+    /// The `act` field is the string representation of an act or command group.
+    act: String,
+    /// The `visible` field is set by checking the "Show" box in a [`TableView`].
+    visible: bool,
+}
+
+impl CommandRow {
+    pub fn new(command: &str, act: &str) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            command: command.to_string(),
+            act: act.to_string(),
+            visible: true,
+        }
+    }
+}
+
+impl Columnar for CommandRow {
+    fn names() -> Vec<String> {
+        vec!["Command".to_string(), "Act".to_string()]
+    }
+
+    fn values(&self) -> Vec<String> {
+        vec![self.command.clone(), self.act.clone()]
+    }
+
+    fn id(&self) -> &Uuid {
+        &self.id
+    }
+}
+
+/// The `CommandTable` struct is a wrapper around a vector of type [`CommandRow`].  The
+/// `CommandTable` implements the [`Tabular`] trait for display in a [`TableView`], and implements
+/// [`Filtration`] by *bool* to control visibility of commands in the command window.
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+pub struct CommandTable(Vec<CommandRow>);
+
+impl ops::Deref for CommandTable {
+    type Target = Vec<CommandRow>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl ops::DerefMut for CommandTable {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Tabular<CommandRow> for CommandTable {
+    fn headers() -> Vec<String> {
+        vec!["Command".to_string(), "Act".to_string()]
+    }
+    fn rows(&self) -> Vec<CommandRow> {
+        self.0.clone()
+    }
+
+    fn sort_by_col(&mut self, column_index: usize, reverse: bool) {
+        match column_index {
+            0 => {
+                if reverse {
+                    self.0.sort_by(|a, b| b.command.cmp(&a.command));
+                } else {
+                    self.0.sort_by(|a, b| a.command.cmp(&b.command));
+                }
+            }
+            1 => {
+                if reverse {
+                    self.0.sort_by(|a, b| b.act.cmp(&a.act));
+                } else {
+                    self.0.sort_by(|a, b| a.act.cmp(&b.act));
+                }
+            }
+            _ => {
+                tracing::info!("Column index not recognized.");
+            }
+        }
+    }
+}
+
+impl Filtration<CommandTable, bool> for CommandTable {
+    fn filter(self, filter: &bool) -> Self {
+        let values = self
+            .iter()
+            .cloned()
+            .filter(|v| v.visible == *filter)
+            .collect::<Vec<CommandRow>>();
+        CommandTable(values)
+    }
+}
+
+impl From<&Choices> for CommandTable {
+    fn from(choices: &Choices) -> Self {
+        let rows = choices
+            .0
+            .iter()
+            .map(|(k, v)| CommandRow::new(&k.to_string(), &v.to_string()))
+            .collect::<Vec<CommandRow>>();
+        CommandTable(rows)
+    }
+}
+
+impl From<&ChoiceMap> for CommandTable {
+    fn from(choice_map: &ChoiceMap) -> Self {
+        let mut rows = Vec::new();
+        for (_, choices) in &choice_map.0 {
+            let table = Self::from(choices);
+            rows.extend(table.0);
+        }
+        Self(rows)
+    }
+}
+
+impl From<&CommandMode> for CommandTable {
+    fn from(mode: &CommandMode) -> Self {
+        match mode {
+            CommandMode::Normal(choice_map) => Self::from(choice_map),
+        }
+    }
+}
+// pub command_view: TableView<CommandTable, CommandRow, bool>,
+// /// Lookup keys for the [`ChoiceMap`] passed down from the global state.
+// pub command_keys: Option<(String, Option<Command>)>,
+// /// Active [`ChoiceMap`] from the `command` field of [`State`].
+// pub command_tree: CommandMode,
+
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+pub struct CommandView {
+    /// Window showing available commands.
+    pub table: TableView<CommandTable, CommandRow, bool>,
+    /// Lookup keys for the [`ChoiceMap`] passed down from the global state.
+    pub key: Option<String>,
+    /// Lookup command for the [`Choices`] within the [`ChoiceMap`].
+    pub command: Option<Command>,
+    /// Active [`ChoiceMap`] from the `command` field of [`State`].
+    pub data: CommandTable,
+    /// The `option` field indicates if the view options show be visible.
+    pub options: bool,
+    /// The `refresh` field is set as a flag when the options change to reload the table.
+    pub refresh: Option<()>,
+}
+
+impl CommandView {
+    pub fn check_options(&mut self) {
+        if let Some(()) = self.refresh.take() {
+            // rebuild the table with or without check boxes
+            match self.options {
+                true => {
+                    // with check boxes
+                    let config = TableConfig::new().checked();
+                    // record current state of checks
+                    let checks = self.table.checks.clone();
+                    // create a new table view by cloning the original data
+                    self.table = TableView::with_config(self.data.clone(), config);
+                    // return checks to previous state
+                    self.table.checks = checks;
+                    tracing::info!("Table reset.");
+                }
+                false => {
+                    // record current state of checks
+                    let checks = self.table.checks.clone();
+                    // without check boxes
+                    self.table = TableView::new(self.data.clone());
+                    // return checks to previous state
+                    self.table.checks = checks;
+                    // filter data by whether visible
+                    let table = self.table.data.clone().filter(&true);
+                    // set the view to the filtered table
+                    let view = self.table.view_mut();
+                    *view = table;
+                    tracing::info!("Table filtered and reset!");
+                }
+            }
+        }
+    }
+    pub fn show(&mut self, ui: &mut egui::Ui) {
+        self.check_options();
+        self.table.table(ui);
+        if ui.checkbox(&mut self.options, "Show options").changed() {
+            match self.options {
+                // Activating checks
+                true => {
+                    // Copy the data to read the visibility.
+                    let rows = self.data.clone();
+                    // Create a mutable reference to the checks field to record visibility.
+                    let checks = self.table.checks_mut();
+                    // For each row, set the check to match the visibility
+                    for row in rows.iter() {
+                        if let Some(check) = checks.get_mut(&row.id) {
+                            *check = row.visible;
+                        }
+                    }
+                    tracing::info!("Checks set from data.");
+                }
+                // Deactivating checks
+                false => {
+                    // Copy the current status of checks to write to row state
+                    let checks = self.table.checks().clone();
+                    // for each row, copy checks to visible to record any changes by the user
+                    for row in self.data.iter_mut() {
+                        if let Some(check) = checks.get(&row.id) {
+                            row.visible = *check;
+                        }
+                    }
+                    tracing::info!("Data set from checks.");
+                }
+            }
+            self.refresh = Some(());
+        }
+    }
+}
+
+impl From<&CommandTable> for CommandView {
+    fn from(table: &CommandTable) -> Self {
+        let data = table.clone();
+        let table = TableView::new(data.clone());
+        let refresh = Some(());
+        Self {
+            table,
+            data,
+            refresh,
+            ..Default::default()
+        }
+    }
+}

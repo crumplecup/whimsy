@@ -1,329 +1,339 @@
-use crate::prelude::{
-    Address, Addresses, Choices, EguiAct, Leaf, Node, Parcels, TableView, Tabular, Tree,
-};
+use crate::prelude::{Parcels, TableView, Tabular, Tree};
 use egui::{
     Align, Color32, Context, DragValue, Id, Layout, ScrollArea, Sense, Slider, TextStyle, Ui,
 };
 use egui_extras::{Column, TableBuilder};
 use itertools::sorted;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use uuid::Uuid;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct UiState {
-    pub addresses: Option<Addresses>,
-    pub address_table: Option<TableView<Addresses, Address>>,
+    // pub addresses: Option<Addresses>,
+    // pub address_table: Option<TableView<Addresses, Address>>,
     pub counter: i32,
     pub focus_tree: Tree,
     pub focus_counter: bool,
     pub focus_parcels: bool,
-    pub panel: Option<Panel<Address>>,
+    // pub panel: Option<Panel<Address>>,
     pub parcels: Option<Arc<Parcels>>,
+    pub enter: Option<()>,
 }
 
-impl UiState {
-    pub fn new() -> Self {
-        // let vec = include_bytes!("../data/addresses.data");
-        // let addresses: Option<AddressPoints> = match bincode::deserialize(&vec[..]) {
-        //     Ok(data) => Some(data),
-        //     Err(e) => {
-        //         tracing::info!("{:#?}", e.to_string());
-        //         None
-        //     }
-        // };
-
-        let mut panel = None;
-        let mut address_table = None;
-        let addresses = match Addresses::load("data/addresses.data") {
-            Ok(data) => {
-                panel = Some(Panel::new(data.records.clone()));
-                address_table = Some(TableView::new(data.clone()));
-                tracing::info!("Records read: {}", data.records.len());
-                Some(data)
-            }
-            Err(e) => {
-                tracing::info!("Could not read records: {}", e.to_string());
-                None
-            }
-        };
-        // let addresses = match Addresses::from_csv("data/addresses.csv") {
-        //     Ok(data) => {
-        //         panel = Some(Panel::new(data.records.clone()));
-        //         // tracing::info!("Records read: {}", data.records.len());
-        //         // let mut d = data.clone();
-        //         // d.to_csv("data/addresses.csv").unwrap();
-        //         // data.save("data/addresses.data").unwrap();
-        //         Some(data)
-        //     },
-        //     Err(_) => None,
-        // };
-
-        let parcels = match Parcels::load("data/parcels.data") {
-            Ok(data) => Some(Arc::new(data)),
-            Err(_) => None,
-        };
-
-        Self {
-            addresses,
-            address_table,
-            counter: Default::default(),
-            focus_tree: Tree::new(),
-            focus_counter: true,
-            focus_parcels: true,
-            panel,
-            parcels,
-        }
-    }
-
-    pub fn in_focus(&mut self, id: Id) -> bool {
-        if let Some(focus) = self.focus_tree.select {
-            if focus == id {
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    }
-
-    pub fn act(&mut self, act: &EguiAct) {
-        match *act {
-            EguiAct::Right => {
-                let _ = self.focus_tree.next_node();
-                self.focus_tree.select_current();
-            }
-            EguiAct::Left => {
-                let _ = self.focus_tree.previous_node();
-                self.focus_tree.select_current();
-            }
-            EguiAct::Up => self.focus_tree.select_previous(),
-            EguiAct::Down => self.focus_tree.select_next(),
-            EguiAct::Next => self.focus_tree.select_next_node(),
-            EguiAct::Previous => self.focus_tree.select_previous_node(),
-            EguiAct::NextWindow => self.focus_tree.select_next_window(),
-            EguiAct::PreviousWindow => self.focus_tree.select_previous_window(),
-            EguiAct::Be => tracing::info!("Taking no action."),
-        }
-    }
-
-    pub fn run(&mut self, ui: &Context) {
-        let mut set_counter = None;
-        let mut set_counter1 = None;
-        let mut set_parcels = None;
-        if self.focus_tree.flags.is_empty() {
-            set_counter = Some(self.focus_tree.window());
-            set_counter1 = Some(self.focus_tree.window());
-            set_parcels = Some(self.focus_tree.window());
-        }
-        egui::Window::new("Whimsy UI").show(ui, |ui| {
-            ui.heading("Window");
-
-            let button = ui.button("Counter");
-            if self.in_focus(button.id) {
-                tracing::info!("Requesting focus for {:#?}", button.id);
-                button.request_focus();
-                tracing::info!("Clearing select.");
-                self.focus_tree.select = None;
-            }
-            if button.clicked {
-                self.counter += 1;
-            }
-            ui.label(format!("Counter ID: {:?}", button.id));
-            // if button.has_focus() {
-            //     ui.label("Focused: Click <Enter> to increment counter.");
-            // }
-
-            let inc = ui.button("Increment");
-            if self.in_focus(inc.id) {
-                tracing::info!("Requesting focus for {:#?}", inc.id);
-                inc.request_focus();
-                tracing::info!("Clearing select.");
-                self.focus_tree.select = None;
-            }
-            if inc.has_focus() {
-                ui.label("Focused: Click <Enter> to increment counter.");
-            }
-            ui.label(format!("{}", self.counter));
-
-            let mut address_ct = 0;
-            if let Some(data) = &self.addresses {
-                address_ct = data.records.len();
-            }
-            ui.label(format!("Addresses: {}", address_ct));
-
-            let mut parcel_ct = 0;
-            if let Some(data) = &self.parcels {
-                parcel_ct = data.records.len();
-            }
-            ui.label(format!("Parcels: {}", parcel_ct));
-
-            if let Some(id) = set_counter {
-                let button_id = self.focus_tree.leaf(button.id);
-                let inc_id = self.focus_tree.leaf(inc.id);
-                let node_id = self.focus_tree.node();
-                self.focus_tree.with_leaf(node_id, button_id);
-                self.focus_tree.with_leaf(node_id, inc_id);
-                self.focus_tree.with_window(node_id, id);
-                tracing::info!("Tree: {:#?}", self.focus_tree);
-                if let Some(counter) = self.focus_tree.flags.get_mut(&id) {
-                    *counter = true;
-                    set_counter = None;
-                }
-            }
-        });
-        egui::Window::new("Counter").show(ui, |ui| {
-            let button = ui.button("Counter");
-            if self.in_focus(button.id) {
-                tracing::info!("Requesting focus for {:#?}", button.id);
-                button.request_focus();
-                tracing::info!("Clearing select.");
-                self.focus_tree.select = None;
-            }
-            if button.clicked {
-                self.counter += 1;
-            }
-            ui.label(format!("Counter ID: {:?}", button.id));
-            if button.has_focus() {
-                ui.label("Focused: Click <Enter> to increment counter.");
-            }
-
-            let inc = ui.button("Increment");
-            if self.in_focus(inc.id) {
-                tracing::info!("Requesting focus for {:#?}", inc.id);
-                inc.request_focus();
-                tracing::info!("Clearing select.");
-                self.focus_tree.select = None;
-            }
-            if ui.button("Increment").clicked() {
-                self.counter += 1;
-            }
-            ui.label(format!("{}", self.counter));
-
-            let mut address_ct = 0;
-            if let Some(data) = &self.addresses {
-                address_ct = data.records.len();
-            }
-            ui.label(format!("Addresses: {}", address_ct));
-
-            let mut parcel_ct = 0;
-            if let Some(data) = &self.parcels {
-                parcel_ct = data.records.len();
-            }
-            ui.label(format!("Parcels: {}", parcel_ct));
-
-            if let Some(id) = set_counter1 {
-                let button_id = self.focus_tree.leaf(button.id);
-                let inc_id = self.focus_tree.leaf(inc.id);
-                let node_id = self.focus_tree.node();
-                self.focus_tree.with_leaf(node_id, button_id);
-                self.focus_tree.with_leaf(node_id, inc_id);
-                self.focus_tree.with_window(node_id, id);
-                tracing::info!("Tree: {:#?}", self.focus_tree);
-                if let Some(counter) = self.focus_tree.flags.get_mut(&id) {
-                    *counter = true;
-                    set_counter1 = None;
-                }
-            }
-        });
-
-        let text_style = TextStyle::Body;
-        // egui::SidePanel::right("Sidebar").show(ui, |ui| {
-        //     ui.label("Address Info:");
-        //     if let Some(data) = &self.addresses {
-        //         let row_height = ui.text_style_height(&text_style);
-        //         let num_rows = data.records.len();
-        //         egui::ScrollArea::vertical().show_rows(
-        //             ui,
-        //             row_height,
-        //             num_rows,
-        //             |ui, row_range| {
-        //             for row in row_range {
-        //                 ui.label(format!("{:#?}", data.records[row]));
-        //             }
-        //         });
-        //     } else {
-        //         ui.label("None loaded.");
-        //     }
-        // });
-
-        let mut table_id = None;
-        if let Some(window) = set_parcels {
-            let id = self.focus_tree.node();
-            table_id = Some(id);
-            self.focus_tree.with_window(id, window);
-        }
-        egui::Window::new("Parcels").show(ui, |ui| {
-            let mut select = self.focus_tree.select.clone();
-            if let Some(data) = &self.parcels {
-                let row_height = ui.text_style_height(&text_style);
-                let num_rows = data.records.len();
-                egui::ScrollArea::vertical().show_rows(
-                    ui,
-                    row_height,
-                    num_rows,
-                    |ui, row_range| {
-                        for row in row_range {
-                            let record = &data.records[row].owner;
-                            let name = if let Some(val) = &record.name {
-                                val.clone()
-                            } else {
-                                "None".to_string()
-                            };
-                            let owner = ui.label(format!("Owner: {}", name));
-                            if set_parcels.is_some() {
-                                let leaf = self.focus_tree.leaf(owner.id);
-                                if let Some(table) = table_id {
-                                    self.focus_tree.with_leaf(table, leaf);
-                                }
-                            }
-                            if let Some(id) = select {
-                                if id == owner.id {
-                                    tracing::info!("Requesting focus for {:#?}", owner.id);
-                                    owner.request_focus();
-                                    tracing::info!("Clearing select.");
-                                    select = None;
-                                }
-                            }
-
-                            ui.label(format!("Map #: {}", &record.id));
-                        }
-                        if let Some(id) = set_parcels {
-                            tracing::info!("Tree: {:#?}", self.focus_tree);
-                            if let Some(p) = self.focus_tree.flags.get_mut(&id) {
-                                *p = true;
-                                set_parcels = None;
-                            }
-                        }
-                    },
-                );
-                self.focus_tree.select = select;
-            } else {
-                ui.label("None loaded.");
-            }
-        });
-
-        // egui::Window::new("Addresses").show(ui, |ui| {
-        //     if let Some(panel) = &mut self.panel {
-        //         panel.table(ui);
-        //     }
-        //
-        // });
-
-        // egui::Window::new("Address Table").show(ui, |ui| {
-        //     if let Some(values) = &mut self.address_table {
-        //         values.table(ui);
-        //     }
-        //
-        // });
-
-        // egui::Window::new("Addresses").show(ui, |ui| {
-        //     self.scroll_to.ui(ui);
-        //
-        // });
-    }
-}
+// impl UiState {
+//     pub fn new() -> Self {
+//         // let vec = include_bytes!("../data/addresses.data");
+//         // let addresses: Option<AddressPoints> = match bincode::deserialize(&vec[..]) {
+//         //     Ok(data) => Some(data),
+//         //     Err(e) => {
+//         //         tracing::info!("{:#?}", e.to_string());
+//         //         None
+//         //     }
+//         // };
+//
+//         let mut panel = None;
+//         let mut address_table = None;
+//         let addresses = match Addresses::load("data/addresses.data") {
+//             Ok(data) => {
+//                 panel = Some(Panel::new(data.records.clone()));
+//                 address_table = Some(TableView::new(data.clone()));
+//                 tracing::info!("Records read: {}", data.records.len());
+//                 Some(data)
+//             }
+//             Err(e) => {
+//                 tracing::info!("Could not read records: {}", e.to_string());
+//                 None
+//             }
+//         };
+//         // let addresses = match Addresses::from_csv("data/addresses.csv") {
+//         //     Ok(data) => {
+//         //         panel = Some(Panel::new(data.records.clone()));
+//         //         // tracing::info!("Records read: {}", data.records.len());
+//         //         // let mut d = data.clone();
+//         //         // d.to_csv("data/addresses.csv").unwrap();
+//         //         // data.save("data/addresses.data").unwrap();
+//         //         Some(data)
+//         //     },
+//         //     Err(_) => None,
+//         // };
+//
+//         let parcels = match Parcels::load("data/parcels.data") {
+//             Ok(data) => Some(Arc::new(data)),
+//             Err(_) => None,
+//         };
+//
+//         Self {
+//             addresses,
+//             address_table,
+//             counter: Default::default(),
+//             focus_tree: Tree::new(),
+//             focus_counter: true,
+//             focus_parcels: true,
+//             panel,
+//             parcels,
+//             enter: None,
+//         }
+//     }
+//
+//     pub fn in_focus(&mut self, id: Id) -> bool {
+//         if let Some(focus) = self.focus_tree.select {
+//             if focus == id {
+//                 true
+//             } else {
+//                 false
+//             }
+//         } else {
+//             false
+//         }
+//     }
+//
+//     pub fn act(&mut self, act: &EguiAct) {
+//         match *act {
+//             EguiAct::Right => {
+//                 let _ = self.focus_tree.next_node();
+//                 self.focus_tree.select_current();
+//             }
+//             EguiAct::Left => {
+//                 let _ = self.focus_tree.previous_node();
+//                 self.focus_tree.select_current();
+//             }
+//             EguiAct::Up => self.focus_tree.select_previous(),
+//             EguiAct::Down => self.focus_tree.select_next(),
+//             EguiAct::Next => self.focus_tree.select_next_node(),
+//             EguiAct::Previous => self.focus_tree.select_previous_node(),
+//             EguiAct::NextWindow => self.focus_tree.select_next_window(),
+//             EguiAct::PreviousWindow => self.focus_tree.select_previous_window(),
+//             EguiAct::Be => tracing::info!("Taking no action."),
+//         }
+//     }
+//
+//     /// Receiver for an ['Act'] sent from the main event loop.
+//     pub fn enter(&mut self) {
+//         tracing::info!("State for Enter set.");
+//         self.enter = Some(());
+//     }
+//
+//     pub fn run(&mut self, ui: &Context) {
+//         let mut set_counter = None;
+//         let mut set_counter1 = None;
+//         let mut set_parcels = None;
+//         if self.focus_tree.flags.is_empty() {
+//             set_counter = Some(self.focus_tree.window());
+//             set_counter1 = Some(self.focus_tree.window());
+//             set_parcels = Some(self.focus_tree.window());
+//         }
+//         egui::Window::new("Whimsy UI").show(ui, |ui| {
+//             ui.heading("Window");
+//
+//             let button = ui.button("Counter");
+//             if self.in_focus(button.id) {
+//                 tracing::info!("Requesting focus for {:#?}", button.id);
+//                 button.request_focus();
+//                 tracing::info!("Clearing select.");
+//                 self.focus_tree.select = None;
+//             }
+//             if button.clicked {
+//                 self.enter();
+//             }
+//             if let Some(_) = self.enter.take() {
+//                 self.counter += 1;
+//             }
+//             ui.label(format!("Counter ID: {:?}", button.id));
+//             // if button.has_focus() {
+//             //     ui.label("Focused: Click <Enter> to increment counter.");
+//             // }
+//
+//             let inc = ui.button("Increment");
+//             if self.in_focus(inc.id) {
+//                 tracing::info!("Requesting focus for {:#?}", inc.id);
+//                 inc.request_focus();
+//                 tracing::info!("Clearing select.");
+//                 self.focus_tree.select = None;
+//             }
+//             if inc.has_focus() {
+//                 ui.label("Focused: Click <Enter> to increment counter.");
+//             }
+//             ui.label(format!("{}", self.counter));
+//
+//             let mut address_ct = 0;
+//             if let Some(data) = &self.addresses {
+//                 address_ct = data.records.len();
+//             }
+//             ui.label(format!("Addresses: {}", address_ct));
+//
+//             let mut parcel_ct = 0;
+//             if let Some(data) = &self.parcels {
+//                 parcel_ct = data.records.len();
+//             }
+//             ui.label(format!("Parcels: {}", parcel_ct));
+//
+//             if let Some(id) = set_counter {
+//                 let button_id = self.focus_tree.leaf(button.id);
+//                 let inc_id = self.focus_tree.leaf(inc.id);
+//                 let node_id = self.focus_tree.node();
+//                 self.focus_tree.with_leaf(node_id, button_id);
+//                 self.focus_tree.with_leaf(node_id, inc_id);
+//                 self.focus_tree.with_window(node_id, id);
+//                 tracing::info!("Tree: {:#?}", self.focus_tree);
+//                 if let Some(counter) = self.focus_tree.flags.get_mut(&id) {
+//                     *counter = true;
+//                     set_counter = None;
+//                 }
+//             }
+//         });
+//         egui::Window::new("Counter").show(ui, |ui| {
+//             let button = ui.button("Counter");
+//             if self.in_focus(button.id) {
+//                 tracing::info!("Requesting focus for {:#?}", button.id);
+//                 button.request_focus();
+//                 tracing::info!("Clearing select.");
+//                 self.focus_tree.select = None;
+//             }
+//             if button.clicked {
+//                 self.counter += 1;
+//             }
+//             ui.label(format!("Counter ID: {:?}", button.id));
+//             if button.has_focus() {
+//                 ui.label("Focused: Click <Enter> to increment counter.");
+//             }
+//
+//             let inc = ui.button("Increment");
+//             if self.in_focus(inc.id) {
+//                 tracing::info!("Requesting focus for {:#?}", inc.id);
+//                 inc.request_focus();
+//                 tracing::info!("Clearing select.");
+//                 self.focus_tree.select = None;
+//             }
+//             if ui.button("Increment").clicked() {
+//                 self.counter += 1;
+//             }
+//             ui.label(format!("{}", self.counter));
+//
+//             let mut address_ct = 0;
+//             if let Some(data) = &self.addresses {
+//                 address_ct = data.records.len();
+//             }
+//             ui.label(format!("Addresses: {}", address_ct));
+//
+//             let mut parcel_ct = 0;
+//             if let Some(data) = &self.parcels {
+//                 parcel_ct = data.records.len();
+//             }
+//             ui.label(format!("Parcels: {}", parcel_ct));
+//
+//             if let Some(id) = set_counter1 {
+//                 let button_id = self.focus_tree.leaf(button.id);
+//                 let inc_id = self.focus_tree.leaf(inc.id);
+//                 let node_id = self.focus_tree.node();
+//                 self.focus_tree.with_leaf(node_id, button_id);
+//                 self.focus_tree.with_leaf(node_id, inc_id);
+//                 self.focus_tree.with_window(node_id, id);
+//                 tracing::info!("Tree: {:#?}", self.focus_tree);
+//                 if let Some(counter) = self.focus_tree.flags.get_mut(&id) {
+//                     *counter = true;
+//                     set_counter1 = None;
+//                 }
+//             }
+//         });
+//
+//         let text_style = TextStyle::Body;
+//         // egui::SidePanel::right("Sidebar").show(ui, |ui| {
+//         //     ui.label("Address Info:");
+//         //     if let Some(data) = &self.addresses {
+//         //         let row_height = ui.text_style_height(&text_style);
+//         //         let num_rows = data.records.len();
+//         //         egui::ScrollArea::vertical().show_rows(
+//         //             ui,
+//         //             row_height,
+//         //             num_rows,
+//         //             |ui, row_range| {
+//         //             for row in row_range {
+//         //                 ui.label(format!("{:#?}", data.records[row]));
+//         //             }
+//         //         });
+//         //     } else {
+//         //         ui.label("None loaded.");
+//         //     }
+//         // });
+//
+//         let mut table_id = None;
+//         if let Some(window) = set_parcels {
+//             let id = self.focus_tree.node();
+//             table_id = Some(id);
+//             self.focus_tree.with_window(id, window);
+//         }
+//         egui::Window::new("Parcels").show(ui, |ui| {
+//             let mut select = self.focus_tree.select.clone();
+//             if let Some(data) = &self.parcels {
+//                 let row_height = ui.text_style_height(&text_style);
+//                 let num_rows = data.records.len();
+//                 egui::ScrollArea::vertical().show_rows(
+//                     ui,
+//                     row_height,
+//                     num_rows,
+//                     |ui, row_range| {
+//                         for row in row_range {
+//                             let record = &data.records[row].owner;
+//                             let name = if let Some(val) = &record.name {
+//                                 val.clone()
+//                             } else {
+//                                 "None".to_string()
+//                             };
+//                             let owner = ui.label(format!("Owner: {}", name));
+//                             if set_parcels.is_some() {
+//                                 let leaf = self.focus_tree.leaf(owner.id);
+//                                 if let Some(table) = table_id {
+//                                     self.focus_tree.with_leaf(table, leaf);
+//                                 }
+//                             }
+//                             if let Some(id) = select {
+//                                 if id == owner.id {
+//                                     tracing::info!("Requesting focus for {:#?}", owner.id);
+//                                     owner.request_focus();
+//                                     tracing::info!("Clearing select.");
+//                                     select = None;
+//                                 }
+//                             }
+//
+//                             ui.label(format!("Map #: {}", &record.id));
+//                         }
+//                         if let Some(id) = set_parcels {
+//                             tracing::info!("Tree: {:#?}", self.focus_tree);
+//                             if let Some(p) = self.focus_tree.flags.get_mut(&id) {
+//                                 *p = true;
+//                                 set_parcels = None;
+//                             }
+//                         }
+//                     },
+//                 );
+//                 self.focus_tree.select = select;
+//             } else {
+//                 ui.label("None loaded.");
+//             }
+//         });
+//
+//         // egui::Window::new("Addresses").show(ui, |ui| {
+//         //     if let Some(panel) = &mut self.panel {
+//         //         panel.table(ui);
+//         //     }
+//         //
+//         // });
+//
+//         // egui::Window::new("Address Table").show(ui, |ui| {
+//         //     if let Some(values) = &mut self.address_table {
+//         //         values.table(ui);
+//         //     }
+//         //
+//         // });
+//
+//         // egui::Window::new("Addresses").show(ui, |ui| {
+//         //     self.scroll_to.ui(ui);
+//         //
+//         // });
+//     }
+// }
 
 #[derive(Clone, Debug, Default)]
 pub struct HashPanel<K, V> {
@@ -514,7 +524,7 @@ impl<
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Panel<T> {
     pub data: HashMap<Uuid, T>,
     pub selected: HashSet<Uuid>,

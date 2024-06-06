@@ -1,3 +1,4 @@
+use address::prelude::Portable;
 use polite::Polite;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -130,5 +131,24 @@ fn parses_command() -> Polite<()> {
         assert_eq!(c, Command::with_modifier("g", &comp));
     }
 
+    Ok(())
+}
+
+#[test]
+fn import_addresses() -> Polite<()> {
+    if tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "test=info".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .try_init()
+        .is_ok()
+    {};
+    info!("Subscriber initialized.");
+    let sa = address::prelude::GrantsPassSpatialAddresses::from_csv("data/addresses.csv").unwrap();
+    let sa = address::prelude::SpatialAddresses::from(&sa.records[..]);
+    let sa = whimsy::prelude::AddressPoints::from(&sa);
+    sa.save("data/addresses.data")?;
     Ok(())
 }

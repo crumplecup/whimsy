@@ -1,8 +1,11 @@
-use crate::prelude::Command;
-use polite::Polite;
+//! The `act` module encapsulates the event handling model for the application by classifying
+//! application functions as variants of the `Act` enum.
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
+/// The `Act` enum delineates the types of application functions that are accessible to the user.
+/// The `command` module maps keyboard inputs to specific variants of the `Act` enum as an action
+/// handling model.
 #[derive(
     Debug,
     Default,
@@ -18,9 +21,13 @@ use strum_macros::EnumIter;
     Serialize,
 )]
 pub enum Act {
+    /// Event handlers for the `winit` library.
     App(AppAct),
+    /// Event handlers for the `egui` library.
     Egui(EguiAct),
+    /// Event handlers for named keys.
     Named(NamedAct),
+    /// A no-op action.
     #[default]
     Be,
 }
@@ -30,8 +37,36 @@ impl Act {
         Self::default()
     }
 
-    fn from_vec<T: Into<Act> + Clone>(act: &[T]) -> Vec<Self> {
-        act.iter().map(|a| a.clone().into()).collect::<Vec<Act>>()
+    // fn from_vec<T: Into<Act> + Clone>(act: &[T]) -> Vec<Self> {
+    //     act.iter().map(|a| a.clone().into()).collect::<Vec<Act>>()
+    // }
+}
+
+impl std::string::ToString for Act {
+    fn to_string(&self) -> String {
+        match self {
+            Self::App(act) => act.to_string(),
+            Self::Egui(act) => act.to_string(),
+            Self::Named(act) => act.to_string(),
+            Self::Be => "Be".to_string(),
+        }
+    }
+}
+
+impl std::str::FromStr for Act {
+    type Err = polite::FauxPas;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(act) = AppAct::from_str(s) {
+            Ok(Self::App(act))
+        } else if let Ok(act) = EguiAct::from_str(s) {
+            Ok(Self::Egui(act))
+        } else if let Ok(act) = NamedAct::from_str(s) {
+            Ok(Self::Named(act))
+        } else if &s.to_lowercase() == "be" {
+            Ok(Self::Be)
+        } else {
+            Err(polite::FauxPas::Unknown)
+        }
     }
 }
 
@@ -120,22 +155,9 @@ impl AppAct {
     }
 }
 
-impl Stringly for AppAct {
-    fn from_str(input: &str) -> Option<Self> {
-        match input {
-            "help" => Some(Self::Help),
-            "menu" => Some(Self::Menu),
-            "decorations" => Some(Self::Decorations),
-            "fullscreen" => Some(Self::Fullscreen),
-            "maximize" => Some(Self::Maximize),
-            "minimize" => Some(Self::Minimize),
-            "be" => Some(Self::Be),
-            _ => None,
-        }
-    }
-
-    fn to_str(&self) -> &str {
-        match self {
+impl std::string::ToString for AppAct {
+    fn to_string(&self) -> String {
+        let str = match self {
             Self::Help => "Help",
             Self::Menu => "Menu",
             Self::Decorations => "Decorations",
@@ -143,6 +165,23 @@ impl Stringly for AppAct {
             Self::Maximize => "Maximize",
             Self::Minimize => "Minimize",
             Self::Be => "Be",
+        };
+        str.to_string()
+    }
+}
+
+impl std::str::FromStr for AppAct {
+    type Err = polite::FauxPas;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "help" => Ok(Self::Help),
+            "menu" => Ok(Self::Menu),
+            "decorations" => Ok(Self::Decorations),
+            "fullscreen" => Ok(Self::Fullscreen),
+            "maximize" => Ok(Self::Maximize),
+            "minimize" => Ok(Self::Minimize),
+            "be" => Ok(Self::Be),
+            _ => Err(polite::FauxPas::Unknown),
         }
     }
 }
@@ -170,6 +209,8 @@ pub enum EguiAct {
     Previous,
     NextWindow,
     PreviousWindow,
+    NextRow,
+    PreviousRow,
     #[default]
     Be,
 }
@@ -180,24 +221,9 @@ impl EguiAct {
     }
 }
 
-impl Stringly for EguiAct {
-    fn from_str(input: &str) -> Option<Self> {
-        match input {
-            "right" => Some(Self::Right),
-            "left" => Some(Self::Left),
-            "up" => Some(Self::Up),
-            "down" => Some(Self::Down),
-            "next" => Some(Self::Next),
-            "previous" => Some(Self::Previous),
-            "next_window" => Some(Self::NextWindow),
-            "previous_window" => Some(Self::PreviousWindow),
-            "be" => Some(Self::Be),
-            _ => None,
-        }
-    }
-
-    fn to_str(&self) -> &str {
-        match self {
+impl std::string::ToString for EguiAct {
+    fn to_string(&self) -> String {
+        let str = match self {
             Self::Right => "Right",
             Self::Left => "Left",
             Self::Up => "Up",
@@ -206,7 +232,30 @@ impl Stringly for EguiAct {
             Self::Previous => "Previous",
             Self::NextWindow => "Next Window",
             Self::PreviousWindow => "Previous Window",
+            Self::NextRow => "Next Row",
+            Self::PreviousRow => "Previous Row",
             Self::Be => "Be",
+        };
+        str.to_string()
+    }
+}
+
+impl std::str::FromStr for EguiAct {
+    type Err = polite::FauxPas;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "right" => Ok(Self::Right),
+            "left" => Ok(Self::Left),
+            "up" => Ok(Self::Up),
+            "down" => Ok(Self::Down),
+            "next" => Ok(Self::Next),
+            "previous" => Ok(Self::Previous),
+            "next_window" => Ok(Self::NextWindow),
+            "previous_window" => Ok(Self::PreviousWindow),
+            "next_row" => Ok(Self::NextRow),
+            "previous_row" => Ok(Self::PreviousRow),
+            "be" => Ok(Self::Be),
+            _ => Err(polite::FauxPas::Unknown),
         }
     }
 }
@@ -255,33 +304,6 @@ impl NamedAct {
     }
 }
 
-impl Stringly for NamedAct {
-    fn from_str(input: &str) -> Option<Self> {
-        match input {
-            "enter" => Some(Self::Enter),
-            "escape" => Some(Self::Escape),
-            "arrow_left" => Some(Self::ArrowLeft),
-            "arrow_right" => Some(Self::ArrowRight),
-            "arrow_up" => Some(Self::ArrowUp),
-            "arrow_down" => Some(Self::ArrowDown),
-            "be" => Some(Self::Be),
-            _ => None,
-        }
-    }
-
-    fn to_str(&self) -> &str {
-        match self {
-            Self::Enter => "Enter",
-            Self::Escape => "Escape",
-            Self::ArrowLeft => "Arrow Left",
-            Self::ArrowRight => "Arrow Right",
-            Self::ArrowUp => "Arrow Up",
-            Self::ArrowDown => "Arrow Down",
-            Self::Be => "Be",
-        }
-    }
-}
-
 impl From<&winit::keyboard::NamedKey> for NamedAct {
     fn from(named: &winit::keyboard::NamedKey) -> Self {
         match named {
@@ -305,11 +327,33 @@ impl From<&winit::keyboard::Key> for NamedAct {
     }
 }
 
+impl std::string::ToString for NamedAct {
+    fn to_string(&self) -> String {
+        let str = match self {
+            Self::Enter => "Enter",
+            Self::Escape => "Escape",
+            Self::ArrowLeft => "Arrow Left",
+            Self::ArrowRight => "Arrow Right",
+            Self::ArrowUp => "Arrow Up",
+            Self::ArrowDown => "Arrow Down",
+            Self::Be => "Be",
+        };
+        str.to_string()
+    }
+}
 
-pub trait Stringly
-where
-    Self: Sized,
-{
-    fn from_str(input: &str) -> Option<Self>;
-    fn to_str(&self) -> &str;
+impl std::str::FromStr for NamedAct {
+    type Err = polite::FauxPas;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "enter" => Ok(Self::Enter),
+            "escape" => Ok(Self::Escape),
+            "arrow_left" => Ok(Self::ArrowLeft),
+            "arrow_right" => Ok(Self::ArrowRight),
+            "arrow_up" => Ok(Self::ArrowUp),
+            "arrow_down" => Ok(Self::ArrowDown),
+            "be" => Ok(Self::Be),
+            _ => Err(polite::FauxPas::Unknown),
+        }
+    }
 }

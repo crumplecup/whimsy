@@ -1,5 +1,5 @@
 use crate::prelude::{
-    Action, AppAct, CommandMode, EguiState, UiState, WgpuFrame, KEY_BINDINGS, MOUSE_BINDINGS,
+    Action, AppAct, CommandMode, EguiState, Lens, UiState, WgpuFrame, KEY_BINDINGS, MOUSE_BINDINGS,
 };
 use std::{iter, sync::Arc};
 use strum_macros::EnumIter;
@@ -9,7 +9,7 @@ use winit::event_loop::EventLoop;
 use winit::keyboard::ModifiersState;
 use winit::window::{Fullscreen, Theme, Window, WindowId};
 
-pub struct App {
+pub struct State {
     pub surface: Arc<wgpu::Surface<'static>>,
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
@@ -17,7 +17,7 @@ pub struct App {
     pub size: PhysicalSize<u32>,
     pub window: Arc<Window>,
     pub egui_state: EguiState,
-    pub ui_state: UiState,
+    pub lens: Lens,
     pub modifiers: ModifiersState,
     pub theme: Theme,
     /// Cursor position over the window.
@@ -26,7 +26,7 @@ pub struct App {
     pub command_key: String,
 }
 
-impl App {
+impl State {
     pub async fn new(window: Arc<Window>) -> Self {
         let size = window.inner_size();
 
@@ -94,7 +94,7 @@ impl App {
 
         let theme = window.theme().unwrap_or(Theme::Dark);
         let command = CommandMode::new();
-        tracing::info!("Commands: {:#?}", &command);
+        tracing::trace!("Commands: {:#?}", &command);
 
         Self {
             surface,
@@ -104,7 +104,7 @@ impl App {
             size,
             window,
             egui_state,
-            ui_state: UiState::new(),
+            lens: Lens::new(),
             modifiers: Default::default(),
             theme,
             cursor_position: Default::default(),
@@ -163,7 +163,7 @@ impl App {
             };
 
             self.egui_state
-                .render(&mut wgpu_frame, |ui| self.ui_state.run(ui));
+                .render(&mut wgpu_frame, |ui| self.lens.run(ui));
         }
 
         self.queue.submit(iter::once(encoder.finish()));
@@ -301,7 +301,7 @@ impl App {
             //             if let Err(err) = self.create_window(event_loop, Some(tab_id)) {
             //                 eprintln!("Error creating new window: {err}");
             //             }
-            _ => tracing::info!("Other action!"),
+            _ => tracing::trace!("Other action!"),
         }
         //     }
     }
@@ -314,7 +314,7 @@ impl App {
             AppAct::Fullscreen => self.toggle_fullscreen(),
             AppAct::Maximize => self.toggle_maximize(),
             AppAct::Minimize => self.minimize(),
-            AppAct::Be => tracing::info!("No action taken."),
+            AppAct::Be => tracing::trace!("No action taken."),
         }
     }
 }

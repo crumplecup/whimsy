@@ -8,6 +8,8 @@ next = "n"
 previous = "N"
 next_window = "<cr> + n"
 previous_window = "<cr> + N"
+next_row = "r"
+previous_row = "e"
 
 # windowing with winit
 help = "<cr> + H"

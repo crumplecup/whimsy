@@ -11,6 +11,7 @@ path = "src/main.rs"
 name = "whimsy"
 
 [dependencies]
+address = { git = "https://github.com/grantspassoregon/address.git" }
 bincode = "1.3.3"
 bitflags = "2.5.0"
 csv = "1.3.0"
@@ -27,6 +28,7 @@ geojson = "0.24.1"
 geozero = "0.12.0"
 indicatif = { version = "0.17.8", features = ["rayon"] }
 itertools = "0.12.1"
+names = "0.14.0"
 nom = "7.1.3"
 num-traits = "0.2.18"
 polite = { git = "https://github.com/crumplecup/cordial", default-features = false, features = ["bin", "gis", "parse", "win"] }

@@ -9,6 +9,7 @@ use winit::window::Window;
 
 use super::WgpuFrame;
 
+/// The `EguiState` struct holds components for the application GUI.
 pub struct EguiState {
     pub context: Context,
     pub state: State,
