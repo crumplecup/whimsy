@@ -6,6 +6,18 @@ use whimsy::prelude::Command;
 use whimsy::prelude::Modifiers;
 use winit::keyboard::ModifiersState;
 
+fn init_tracing() {
+    if tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "test=info".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .try_init()
+        .is_ok()
+    {};
+}
+
 #[test]
 fn observer() -> Polite<()> {
     if tracing_subscriber::registry()
@@ -150,5 +162,45 @@ fn import_addresses() -> Polite<()> {
     let sa = address::prelude::SpatialAddresses::from(&sa.records[..]);
     let sa = whimsy::prelude::AddressPoints::from(&sa);
     sa.save("data/addresses.data")?;
+    Ok(())
+}
+
+#[test]
+fn iterate_enum() -> Polite<()> {
+    use strum::IntoEnumIterator;
+    init_tracing();
+    tracing::info!("Desired standard order.");
+    let mut egui = whimsy::prelude::EguiAct::iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>();
+    egui.pop();
+    egui.iter().map(|x| tracing::info!("{x}")).for_each(drop);
+    let mut named = whimsy::prelude::NamedAct::iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>();
+    named.pop();
+    named.iter().map(|x| tracing::info!("{x}")).for_each(drop);
+    let mut app = whimsy::prelude::AppAct::iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>();
+    app.iter().map(|x| tracing::info!("{x}")).for_each(drop);
+
+    tracing::info!("Sorted order.");
+    let mut egui = whimsy::prelude::EguiAct::iter().collect::<Vec<whimsy::prelude::EguiAct>>();
+    egui.sort();
+    let mut egui = egui.iter().map(|x| x.to_string()).collect::<Vec<String>>();
+    egui.pop();
+    egui.iter().map(|x| tracing::info!("{x}")).for_each(drop);
+    let mut named = whimsy::prelude::NamedAct::iter().collect::<Vec<whimsy::prelude::NamedAct>>();
+    named.sort();
+    let mut named = named.iter().map(|x| x.to_string()).collect::<Vec<String>>();
+    named.pop();
+    named.iter().map(|x| tracing::info!("{x}")).for_each(drop);
+    let mut app = whimsy::prelude::AppAct::iter().collect::<Vec<whimsy::prelude::AppAct>>();
+    app.sort();
+    let mut app = app.iter().map(|x| x.to_string()).collect::<Vec<String>>();
+    app.pop();
+    app.iter().map(|x| tracing::info!("{x}")).for_each(drop);
+
     Ok(())
 }

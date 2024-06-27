@@ -1,4 +1,5 @@
 use crate::prelude::{Act, Command, CommandOptions, Lens, NamedAct, State};
+use crate::state::lens;
 use polite::Polite;
 use std::sync::Arc;
 use wgpu::SurfaceError;
@@ -24,10 +25,12 @@ impl App {
         let window = Arc::new(window);
         let mut state = State::new(Arc::clone(&window)).await;
         if let Ok(lens) = Lens::load("data/state.data") {
-            state.lens = lens;
+            state.lens = lens.clone();
+            state.tab = egui_dock::DockState::new(vec![lens::Tab::new(lens)]);
         } else {
             tracing::info!("Could not read state from storage.");
         }
+
         Ok((
             Self {
                 window,

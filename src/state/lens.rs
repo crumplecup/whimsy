@@ -2,6 +2,7 @@ use crate::prelude::{
     load_bin, save, AddressPoint, AddressPoints, CommandMode, CommandTable, CommandView, EguiAct,
     Panel, Parcels, TableConfig, TableView, Tree,
 };
+use derive_more::{Deref, DerefMut};
 use egui::{Context, Id, TextStyle};
 use polite::Polite;
 use serde::{Deserialize, Serialize};
@@ -373,5 +374,33 @@ impl Lens {
         let records = load_bin(path)?;
         let decode: Self = bincode::deserialize(&records[..])?;
         Ok(decode)
+    }
+}
+
+#[derive(Debug, Clone, Default, Deref, DerefMut)]
+pub struct Tab(Lens);
+
+impl Tab {
+    pub fn new(lens: Lens) -> Self {
+        Self(lens)
+    }
+
+    pub fn run_ui(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.label("Hello egui!");
+        });
+    }
+}
+
+impl egui_dock::TabViewer for Tab {
+    type Tab = Tab;
+
+    fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
+        "TabbaT".into()
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
+        let ctx = ui.ctx();
+        tab.run(ctx);
     }
 }

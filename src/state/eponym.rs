@@ -1,8 +1,8 @@
 use crate::prelude::{
     Action, AppAct, CommandMode, EguiState, Lens, UiState, WgpuFrame, KEY_BINDINGS, MOUSE_BINDINGS,
 };
+use crate::state;
 use std::{iter, sync::Arc};
-use strum_macros::EnumIter;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::*;
 use winit::event_loop::EventLoop;
@@ -18,6 +18,7 @@ pub struct State {
     pub window: Arc<Window>,
     pub egui_state: EguiState,
     pub lens: Lens,
+    pub tab: egui_dock::DockState<state::lens::Tab>,
     pub modifiers: ModifiersState,
     pub theme: Theme,
     /// Cursor position over the window.
@@ -96,6 +97,8 @@ impl State {
         let command = CommandMode::new();
         tracing::trace!("Commands: {:#?}", &command);
 
+        let tab = egui_dock::DockState::new(vec![state::lens::Tab::default()]);
+
         Self {
             surface,
             device,
@@ -105,6 +108,7 @@ impl State {
             window,
             egui_state,
             lens: Lens::new(),
+            tab,
             modifiers: Default::default(),
             theme,
             cursor_position: Default::default(),

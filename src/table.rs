@@ -219,17 +219,6 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
         }
     }
 
-    // pub fn ord_diff(&self) -> usize {
-    //     tracing::info!("Diffing ord.");
-    //     let cols = T::headers().len();
-    //     tracing::info!("Cols: {}", cols);
-    //     let flags = self.ord_flags.len();
-    //     tracing::info!("Flags: {}", flags);
-    //     let diff = flags - cols;
-    //     tracing::info!("Diff: {}", diff);
-    //     diff
-    // }
-
     /// UI display for the table view.
     pub fn table(&mut self, ui: &mut Ui) {
         // Each row contains a string value for each column in the table.
@@ -293,13 +282,23 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
                         header.col(|ui| {
                             ui.horizontal(|ui| {
                                 ui.strong(v);
-                                let symbol = match self.ord_flags[i] {
+                                let flag = if self.config.checked && i > 0 {
+                                    i - 1
+                                } else {
+                                    i
+                                };
+                                let symbol = match self.ord_flags[flag] {
                                     true => "⏷",
                                     false => "⏶",
                                 };
                                 if ui.button(symbol).clicked {
-                                    self.set_ord = Some(i);
-                                    self.ord_flags[i] = !self.ord_flags[i];
+                                    if self.config.checked && i > 0 {
+                                        self.set_ord = Some(i - 1);
+                                        self.ord_flags[i - 1] = !self.ord_flags[i - 1];
+                                    } else {
+                                        self.set_ord = Some(i);
+                                        self.ord_flags[i] = !self.ord_flags[i];
+                                    }
                                     tracing::info!("Ord flags set.");
                                 };
                             });

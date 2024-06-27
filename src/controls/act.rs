@@ -6,20 +6,7 @@ use strum_macros::EnumIter;
 /// The `Act` enum delineates the types of application functions that are accessible to the user.
 /// The `command` module maps keyboard inputs to specific variants of the `Act` enum as an action
 /// handling model.
-#[derive(
-    Debug,
-    Default,
-    Copy,
-    Clone,
-    PartialEq,
-    PartialOrd,
-    Eq,
-    Ord,
-    Hash,
-    EnumIter,
-    Deserialize,
-    Serialize,
-)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash, EnumIter, Deserialize, Serialize)]
 pub enum Act {
     /// Event handlers for the `winit` library.
     App(AppAct),
@@ -37,9 +24,28 @@ impl Act {
         Self::default()
     }
 
-    // fn from_vec<T: Into<Act> + Clone>(act: &[T]) -> Vec<Self> {
-    //     act.iter().map(|a| a.clone().into()).collect::<Vec<Act>>()
-    // }
+    pub fn idx(&self) -> usize {
+        match self {
+            Self::App(act) => act.idx(),
+            Self::Egui(act) => act.idx() + 100,
+            Self::Named(act) => act.idx() + 200,
+            Self::Be => 999,
+        }
+    }
+}
+
+impl PartialOrd for Act {
+    fn partial_cmp(&self, other: &Act) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Act {
+    fn cmp(&self, other: &Act) -> std::cmp::Ordering {
+        let self_id = self.idx();
+        let other_id = other.idx();
+        self_id.cmp(&other_id)
+    }
 }
 
 impl std::string::ToString for Act {
@@ -124,20 +130,7 @@ impl From<&NamedAct> for Act {
     }
 }
 
-#[derive(
-    Debug,
-    Default,
-    Copy,
-    Clone,
-    PartialEq,
-    PartialOrd,
-    Eq,
-    Ord,
-    Hash,
-    EnumIter,
-    Deserialize,
-    Serialize,
-)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash, EnumIter, Deserialize, Serialize)]
 pub enum AppAct {
     Help,
     Menu,
@@ -152,6 +145,32 @@ pub enum AppAct {
 impl AppAct {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn idx(&self) -> usize {
+        match self {
+            Self::Help => 0,
+            Self::Menu => 1,
+            Self::Decorations => 2,
+            Self::Fullscreen => 3,
+            Self::Maximize => 4,
+            Self::Minimize => 5,
+            Self::Be => 6,
+        }
+    }
+}
+
+impl PartialOrd for AppAct {
+    fn partial_cmp(&self, other: &AppAct) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for AppAct {
+    fn cmp(&self, other: &AppAct) -> std::cmp::Ordering {
+        let self_id = self.idx();
+        let other_id = other.idx();
+        self_id.cmp(&other_id)
     }
 }
 
@@ -186,20 +205,7 @@ impl std::str::FromStr for AppAct {
     }
 }
 
-#[derive(
-    Debug,
-    Default,
-    Copy,
-    Clone,
-    PartialEq,
-    PartialOrd,
-    Eq,
-    Ord,
-    Hash,
-    EnumIter,
-    Deserialize,
-    Serialize,
-)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash, EnumIter, Deserialize, Serialize)]
 pub enum EguiAct {
     Right,
     Left,
@@ -218,6 +224,36 @@ pub enum EguiAct {
 impl EguiAct {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn idx(&self) -> usize {
+        match self {
+            Self::Right => 0,
+            Self::Left => 1,
+            Self::Up => 2,
+            Self::Down => 3,
+            Self::Next => 4,
+            Self::Previous => 5,
+            Self::NextWindow => 6,
+            Self::PreviousWindow => 7,
+            Self::NextRow => 8,
+            Self::PreviousRow => 9,
+            Self::Be => 10,
+        }
+    }
+}
+
+impl PartialOrd for EguiAct {
+    fn partial_cmp(&self, other: &EguiAct) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for EguiAct {
+    fn cmp(&self, other: &EguiAct) -> std::cmp::Ordering {
+        let self_id = self.idx();
+        let other_id = other.idx();
+        self_id.cmp(&other_id)
     }
 }
 
@@ -266,9 +302,9 @@ impl std::str::FromStr for EguiAct {
     Copy,
     Clone,
     PartialEq,
-    PartialOrd,
+    // PartialOrd,
     Eq,
-    Ord,
+    // Ord,
     Hash,
     EnumIter,
     Deserialize,
@@ -301,6 +337,32 @@ impl NamedAct {
             Self::Be => "be",
         };
         value.to_owned()
+    }
+
+    pub fn idx(&self) -> usize {
+        match self {
+            Self::Enter => 0,
+            Self::Escape => 1,
+            Self::ArrowUp => 2,
+            Self::ArrowDown => 3,
+            Self::ArrowLeft => 4,
+            Self::ArrowRight => 5,
+            Self::Be => 6,
+        }
+    }
+}
+
+impl PartialOrd for NamedAct {
+    fn partial_cmp(&self, other: &NamedAct) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for NamedAct {
+    fn cmp(&self, other: &NamedAct) -> std::cmp::Ordering {
+        let self_id = self.idx();
+        let other_id = other.idx();
+        self_id.cmp(&other_id)
     }
 }
 

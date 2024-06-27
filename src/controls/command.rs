@@ -1,6 +1,8 @@
 use crate::prelude::{
     Act, AppAct, Columnar, EguiAct, Filtration, NamedAct, TableConfig, TableView, Tabular,
 };
+// see https://www.howtocodeit.com/articles/ultimate-guide-rust-newtypes
+use derive_more::{Deref, DerefMut};
 use nom::bytes::complete::tag;
 use nom::character::complete::{alphanumeric1, space0};
 use nom::combinator::opt;
@@ -9,7 +11,7 @@ use nom::IResult;
 use polite::{FauxPas, Polite};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::{fmt, ops};
+use std::fmt;
 use strum::IntoEnumIterator;
 use toml::{Table, Value};
 use tracing::{info, trace, warn};
@@ -259,7 +261,7 @@ impl From<&NamedAct> for Command {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub enum CommandOptions {
     Commands(CommandGroup),
     Acts(Vec<Act>),
@@ -273,12 +275,29 @@ impl CommandOptions {
         }
     }
 
-    // pub fn with_command(&mut self, command: Command) {
-    //     match self {
-    //         Self::Commands(commands) => commands.commands.push(command),
-    //         Self::Acts(_) => warn!("Not a Commands variant!"),
-    //     }
-    // }
+    pub fn idx(&self) -> usize {
+        match self {
+            Self::Acts(acts) => acts[0].idx(),
+            Self::Commands(cmd) => 1000,
+        }
+    }
+}
+
+impl PartialOrd for CommandOptions {
+    fn partial_cmp(&self, other: &CommandOptions) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CommandOptions {
+    fn cmp(&self, other: &CommandOptions) -> std::cmp::Ordering {
+        match (self, other) {
+            (Self::Commands(cmd), Self::Commands(other_cmd)) => cmd.cmp(other_cmd),
+            (Self::Commands(_), Self::Acts(_)) => std::cmp::Ordering::Greater,
+            (Self::Acts(acts), Self::Acts(other_acts)) => acts.cmp(other_acts),
+            (Self::Acts(_), Self::Commands(_)) => std::cmp::Ordering::Less,
+        }
+    }
 }
 
 impl std::string::ToString for CommandOptions {
@@ -321,7 +340,7 @@ impl From<CommandGroup> for CommandOptions {
 pub struct CommandList(Vec<Command>);
 
 /// Names a user-defined custom mapping defined in the config toml as base name **id**.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub struct CommandGroup {
     /// The table name used in the configuration file to identify the command group.
     pub id: String,
@@ -400,6 +419,20 @@ impl CommandGroup {
     }
 }
 
+impl PartialOrd for CommandGroup {
+    fn partial_cmp(&self, other: &CommandGroup) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CommandGroup {
+    fn cmp(&self, other: &CommandGroup) -> std::cmp::Ordering {
+        let self_id = self.name();
+        let other_id = other.name();
+        self_id.cmp(&other_id)
+    }
+}
+
 impl Columnar for CommandGroup {
     fn names() -> Vec<String> {
         vec!["Command".to_string(), "Act".to_string()]
@@ -445,7 +478,7 @@ impl Default for CommandMode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, Deserialize, Serialize)]
 pub struct Choices(pub HashMap<Command, CommandOptions>);
 
 impl Choices {
@@ -507,21 +540,22 @@ impl Choices {
     pub fn try_from_toml(value: &Value) -> Option<Self> {
         let mut choices = Choices::new();
         if let Ok(entry) = Self::from_toml::<AppAct>(value) {
-            choices.value_mut().extend(entry.value().clone());
+            choices.extend(entry.0.into_iter());
         }
         if let Ok(entry) = Self::from_toml::<EguiAct>(value) {
-            choices.value_mut().extend(entry.value().clone());
+            choices.extend(entry.0.into_iter());
         }
         if let Ok(entry) = Self::from_toml::<NamedAct>(value) {
-            choices.value_mut().extend(entry.value().clone());
+            choices.extend(entry.0.into_iter());
         }
-        if choices.value().is_empty() {
+        if choices.is_empty() {
             None
         } else {
             Some(choices)
         }
     }
 
+    /// Attempt to read a [`CommandGroup`] from toml and insert it into the HashMap of choices.
     pub fn command_group(&mut self, value: &Value) -> Polite<()> {
         trace!("{:#?}", value);
         match value {
@@ -546,17 +580,17 @@ impl Choices {
         Ok(())
     }
 
-    pub fn value(&self) -> &HashMap<Command, CommandOptions> {
-        match self {
-            Self(data) => data,
-        }
-    }
-
-    pub fn value_mut(&mut self) -> &mut HashMap<Command, CommandOptions> {
-        match self {
-            Self(data) => data,
-        }
-    }
+    // pub fn value(&self) -> &HashMap<Command, CommandOptions> {
+    //     match self {
+    //         Self(data) => data,
+    //     }
+    // }
+    //
+    // pub fn value_mut(&mut self) -> &mut HashMap<Command, CommandOptions> {
+    //     match self {
+    //         Self(data) => data,
+    //     }
+    // }
 }
 
 impl Default for Choices {
@@ -658,6 +692,8 @@ pub struct CommandRow {
     act: String,
     /// The `visible` field is set by checking the "Show" box in a [`TableView`].
     visible: bool,
+    /// The `active` field indicates the command is in the active view.
+    active: bool,
 }
 
 impl CommandRow {
@@ -667,6 +703,7 @@ impl CommandRow {
             command: command.to_string(),
             act: act.to_string(),
             visible: true,
+            active: true,
         }
     }
 }
@@ -688,19 +725,24 @@ impl Columnar for CommandRow {
 /// The `CommandTable` struct is a wrapper around a vector of type [`CommandRow`].  The
 /// `CommandTable` implements the [`Tabular`] trait for display in a [`TableView`], and implements
 /// [`Filtration`] by *bool* to control visibility of commands in the command window.
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Deref,
+    DerefMut,
+    Deserialize,
+    Serialize,
+)]
 pub struct CommandTable(Vec<CommandRow>);
 
-impl ops::Deref for CommandTable {
-    type Target = Vec<CommandRow>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl ops::DerefMut for CommandTable {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+impl CommandTable {
+    pub fn rows_mut(&mut self) -> &mut Vec<CommandRow> {
         &mut self.0
     }
 }
@@ -786,10 +828,10 @@ impl From<&CommandMode> for CommandTable {
 pub struct CommandView {
     /// Window showing available commands.
     pub table: TableView<CommandTable, CommandRow, bool>,
-    /// Lookup keys for the [`ChoiceMap`] passed down from the global state.
-    pub key: Option<String>,
-    /// Lookup command for the [`Choices`] within the [`ChoiceMap`].
-    pub command: Option<Command>,
+    // /// Lookup keys for the [`ChoiceMap`] passed down from the global state.
+    // pub key: Option<String>,
+    // /// Lookup command for the [`Choices`] within the [`ChoiceMap`].
+    // pub command: Option<Command>,
     /// Active [`ChoiceMap`] from the `command` field of [`State`].
     pub data: CommandTable,
     /// The `option` field indicates if the view options show be visible.
@@ -831,6 +873,22 @@ impl CommandView {
             }
         }
     }
+
+    pub fn set_view(&mut self, from: &CommandTable) {
+        tracing::info!("Setting view.");
+        // receive command table from the lens
+        // for each row in the `from` table
+        // mark the corresponding row in self active
+        let from_rows = from.rows();
+        for row in self.data.rows_mut() {
+            for from_row in &from_rows {
+                if row.command == from_row.command && row.act == from_row.act {
+                    row.active = true;
+                }
+            }
+        }
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui) {
         self.check_options();
         self.table.table(ui);
