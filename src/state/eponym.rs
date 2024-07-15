@@ -1,7 +1,8 @@
 use crate::prelude::{
-    Action, AppAct, CommandMode, EguiState, Lens, UiState, WgpuFrame, KEY_BINDINGS, MOUSE_BINDINGS,
+    Action, AppAct, CommandMode, EguiState, Lens, WgpuFrame, KEY_BINDINGS, MOUSE_BINDINGS,
 };
-use crate::state;
+// use crate::tab;
+use crate::rpg::players::tab;
 use std::{iter, sync::Arc};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::*;
@@ -18,7 +19,7 @@ pub struct State {
     pub window: Arc<Window>,
     pub egui_state: EguiState,
     pub lens: Lens,
-    pub tab: egui_dock::DockState<state::lens::Tab>,
+    pub tab: tab::TabState,
     pub modifiers: ModifiersState,
     pub theme: Theme,
     /// Cursor position over the window.
@@ -97,7 +98,7 @@ impl State {
         let command = CommandMode::new();
         tracing::trace!("Commands: {:#?}", &command);
 
-        let tab = egui_dock::DockState::new(vec![state::lens::Tab::default()]);
+        let tab = tab::TabState::new();
 
         Self {
             surface,
@@ -167,7 +168,7 @@ impl State {
             };
 
             self.egui_state
-                .render(&mut wgpu_frame, |ui| self.lens.run(ui));
+                .render(&mut wgpu_frame, |ui| self.tab.run_ui(ui));
         }
 
         self.queue.submit(iter::once(encoder.finish()));
@@ -259,8 +260,8 @@ impl State {
 
     pub fn handle_action(
         &mut self,
-        event_loop: &EventLoop<()>,
-        window_id: WindowId,
+        _event_loop: &EventLoop<()>,
+        _window_id: WindowId,
         action: Action,
     ) {
         //     // let cursor_position = self.cursor_position;

@@ -3,9 +3,11 @@ pub mod addresses;
 pub mod controls;
 pub mod convert;
 pub mod parcels;
+pub mod rpg;
 pub mod run;
 pub mod run_ui;
 pub mod state;
+pub mod tab;
 pub mod table;
 pub mod utils;
 

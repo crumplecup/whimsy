@@ -487,6 +487,9 @@ pub trait Tabular<T: Columnar> {
     fn len(&self) -> usize {
         self.rows().len()
     }
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     // fn leaves(&self) -> Node {
     //     let mut node = Node::new();
     //     let rows = self.rows();
