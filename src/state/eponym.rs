@@ -1,6 +1,6 @@
-use crate::prelude::{
-    Action, AppAct, CommandMode, EguiState, Lens, WgpuFrame, KEY_BINDINGS, MOUSE_BINDINGS,
-};
+use crate::controls::command;
+use crate::prelude::{Action, AppAct, EguiState, Lens, WgpuFrame, KEY_BINDINGS, MOUSE_BINDINGS};
+use crate::table::Tabular;
 // use crate::tab;
 use crate::rpg::players::tab;
 use std::{iter, sync::Arc};
@@ -24,7 +24,8 @@ pub struct State {
     pub theme: Theme,
     /// Cursor position over the window.
     pub cursor_position: Option<PhysicalPosition<f64>>,
-    pub command: CommandMode,
+    /// The `command` field holds the [`command::CommandMode`] containing the [`command::ChoiceMap`] available to the user.
+    pub command: command::CommandMode,
     pub command_key: String,
 }
 
@@ -95,7 +96,7 @@ impl State {
         let queue = Arc::new(queue);
 
         let theme = window.theme().unwrap_or(Theme::Dark);
-        let command = CommandMode::new();
+        let command = command::CommandMode::new();
         tracing::trace!("Commands: {:#?}", &command);
 
         let tab = tab::TabState::new();
@@ -177,23 +178,23 @@ impl State {
 
         Ok(())
     }
-    /// Process the key binding.
-    pub fn process_key_binding(key: &str, mods: &ModifiersState) -> Option<Action> {
-        KEY_BINDINGS.iter().find_map(|binding| {
-            binding
-                .is_triggered_by(&key, mods)
-                .then_some(binding.action)
-        })
-    }
-
-    /// Process mouse binding.
-    pub fn process_mouse_binding(button: MouseButton, mods: &ModifiersState) -> Option<Action> {
-        MOUSE_BINDINGS.iter().find_map(|binding| {
-            binding
-                .is_triggered_by(&button, mods)
-                .then_some(binding.action)
-        })
-    }
+    /// /// Process the key binding.
+    /// pub fn process_key_binding(key: &str, mods: &ModifiersState) -> Option<Action> {
+    ///     KEY_BINDINGS.iter().find_map(|binding| {
+    ///         binding
+    ///             .is_triggered_by(&key, mods)
+    ///             .then_some(binding.action)
+    ///     })
+    /// }
+    ///
+    /// /// Process mouse binding.
+    /// pub fn process_mouse_binding(button: MouseButton, mods: &ModifiersState) -> Option<Action> {
+    ///     MOUSE_BINDINGS.iter().find_map(|binding| {
+    ///         binding
+    ///             .is_triggered_by(&button, mods)
+    ///             .then_some(binding.action)
+    ///     })
+    /// }
     pub fn print_help(&self) {
         tracing::info!("Keyboard bindings:");
         for binding in KEY_BINDINGS {
@@ -319,6 +320,15 @@ impl State {
             AppAct::Fullscreen => self.toggle_fullscreen(),
             AppAct::Maximize => self.toggle_maximize(),
             AppAct::Minimize => self.minimize(),
+            AppAct::ActiveTab => {
+                if let Some(tab) = self.tab.leaf() {
+                    tracing::info!("Active tab found.");
+                    tracing::info!("Rows: {}", tab.view().view().len());
+                    // tab.act();
+                } else {
+                    tracing::info!("Active tab not returned.");
+                }
+            }
             AppAct::Be => tracing::trace!("No action taken."),
         }
     }

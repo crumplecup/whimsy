@@ -2,6 +2,7 @@ pub mod address_components;
 pub mod addresses;
 pub mod controls;
 pub mod convert;
+pub mod observer;
 pub mod parcels;
 pub mod rpg;
 pub mod run;

@@ -156,6 +156,7 @@ impl App {
                         _ => tracing::trace!("Named event detected"),
                     }
                 }
+                Act::Dock(v) => self.state.tab.act(v),
                 Act::Be => {
                     tracing::trace!("Taking no action.")
                 }

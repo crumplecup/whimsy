@@ -112,7 +112,7 @@ impl AddressPoint {
 
     pub fn column<T: fmt::Display>(&self, columns: &AddressColumns) -> String {
         match *columns {
-            AddressColumns::Label => format!("{}", self.address.label()),
+            AddressColumns::Label => self.address.label(),
             AddressColumns::Number => format!("{}", self.address.number()),
             AddressColumns::Directional => {
                 if let Some(prefix) = self.address.directional() {
@@ -121,10 +121,10 @@ impl AddressPoint {
                     "".to_string()
                 }
             }
-            AddressColumns::StreetName => format!("{}", self.address.street_name()),
+            AddressColumns::StreetName => self.address.street_name().to_string(),
             AddressColumns::StreetType => {
                 if let Some(value) = &self.address.street_type() {
-                    format!("{}", value.abbreviate())
+                    value.abbreviate()
                 } else {
                     "".to_string()
                 }
@@ -138,7 +138,7 @@ impl AddressPoint {
             }
             AddressColumns::SubaddressId => {
                 if let Some(value) = &self.address.subaddress_id() {
-                    format!("{}", value)
+                    value.to_string()
                 } else {
                     "".to_string()
                 }

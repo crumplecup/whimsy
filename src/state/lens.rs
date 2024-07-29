@@ -81,11 +81,7 @@ impl Lens {
 
     pub fn in_focus(&mut self, id: Id) -> bool {
         if let Some(focus) = self.focus_tree.select {
-            if focus == id {
-                true
-            } else {
-                false
-            }
+            focus == id
         } else {
             false
         }
@@ -118,6 +114,9 @@ impl Lens {
                     tracing::info!("Selecting previous row.");
                     table.select_previous();
                 }
+            }
+            EguiAct::FocusedLeaf => {
+                tracing::info!("Taking no action.");
             }
             EguiAct::Be => tracing::trace!("Taking no action."),
         }
@@ -195,8 +194,8 @@ impl Lens {
                 let button_id = self.focus_tree.leaf(button.id);
                 let inc_id = self.focus_tree.leaf(inc.id);
                 let node_id = self.focus_tree.node();
-                self.focus_tree.with_leaf(node_id, button_id);
-                self.focus_tree.with_leaf(node_id, inc_id);
+                self.focus_tree.with_leaf(node_id, button.id);
+                self.focus_tree.with_leaf(node_id, inc.id);
                 self.focus_tree.with_window(node_id, id);
                 tracing::info!("Tree: {:#?}", self.focus_tree);
                 if let Some(counter) = self.focus_tree.flags.get_mut(&id) {
@@ -249,8 +248,8 @@ impl Lens {
                 let button_id = self.focus_tree.leaf(button.id);
                 let inc_id = self.focus_tree.leaf(inc.id);
                 let node_id = self.focus_tree.node();
-                self.focus_tree.with_leaf(node_id, button_id);
-                self.focus_tree.with_leaf(node_id, inc_id);
+                self.focus_tree.with_leaf(node_id, button.id);
+                self.focus_tree.with_leaf(node_id, inc.id);
                 self.focus_tree.with_window(node_id, id);
                 tracing::info!("Tree: {:#?}", self.focus_tree);
                 if let Some(counter) = self.focus_tree.flags.get_mut(&id) {
@@ -307,7 +306,7 @@ impl Lens {
                             if set_parcels.is_some() {
                                 let leaf = self.focus_tree.leaf(owner.id);
                                 if let Some(table) = table_id {
-                                    self.focus_tree.with_leaf(table, leaf);
+                                    self.focus_tree.with_leaf(table, owner.id);
                                 }
                             }
                             if let Some(id) = select {

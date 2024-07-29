@@ -10,6 +10,8 @@ use uuid::Uuid;
 /// The `TableView` struct contains data fields to implement GUI functionality on tabular data.
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct TableView<T: Tabular<U> + Filtration<T, V> + Clone, U: Columnar, V: Default> {
+    /// Title to display for the table.
+    pub name: String,
     /// Data source for the table.
     pub data: T,
     /// View of the data source created on the fly.
@@ -19,11 +21,13 @@ pub struct TableView<T: Tabular<U> + Filtration<T, V> + Clone, U: Columnar, V: D
     /// Configuration parameters for table creation.
     pub config: TableConfig,
     /// Focus tree for navigation.
-    pub tree: Option<Tree>,
+    pub tree: Tree,
     /// Holds user input for the search widget.
     pub search: String,
     /// Tracks rows selected by the user in the table.
     pub selection: HashSet<Uuid>,
+    /// The `enter` field tracks use of the enter key.
+    pub enter: Option<()>,
     /// Tracks checked boxes for rows using `row_ids`.
     pub checks: HashMap<Uuid, bool>,
     /// Tracks ordering button state in headings.
@@ -34,7 +38,7 @@ pub struct TableView<T: Tabular<U> + Filtration<T, V> + Clone, U: Columnar, V: D
     pub filter: Option<V>,
     /// Row target for the slider widget.
     pub target: usize,
-    /// The current row in focus.
+    /// The current row in focus.  Used to hold the current row id in the focus tree.
     pub row_select: Option<Uuid>,
     /// The `row_focus` field signals a change in row focus.
     pub row_focus: Option<Uuid>,
@@ -45,7 +49,7 @@ pub struct TableView<T: Tabular<U> + Filtration<T, V> + Clone, U: Columnar, V: D
     // Indicates if the focus tree has been loaded.
     loaded: bool,
     // Index of leaf ids for the data in `view`.
-    leaves: Vec<Uuid>,
+    leaves: Vec<egui::Id>,
     // Marker to appease the type checker.
     phantom: PhantomData<U>,
 }
@@ -63,12 +67,17 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
         let cols = T::headers().len();
         let ord_flags = vec![false; cols];
         Self {
+            name: String::new(),
             data,
             view,
             package,
             ord_flags,
             ..Default::default()
         }
+    }
+
+    pub fn with_name(&mut self, name: &str) {
+        self.name = name.to_string();
     }
 
     /// The `view` method provides a reference to the `view` field.
@@ -134,15 +143,13 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
                     self.search = Default::default();
                 };
 
-                if !self.loaded {
-                    if let Some(tree) = &mut self.tree {
-                        let entry_id = tree.leaf(entry.id);
-                        let clear_id = tree.leaf(clear.id);
-                        let node_id = tree.node();
-                        tree.with_leaf(node_id, entry_id);
-                        tree.with_leaf(node_id, clear_id);
-                    }
-                }
+                // if !self.loaded {
+                //     let entry_id = self.tree.leaf(entry.id);
+                //     let clear_id = self.tree.leaf(clear.id);
+                //     let node_id = self.tree.node();
+                //     self.tree.with_leaf(node_id, entry_id);
+                //     self.tree.with_leaf(node_id, clear_id);
+                // }
             });
         }
     }
@@ -181,13 +188,11 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
                     };
                     // If loaded is false, the focus tree is new or has changed.
                     if !self.loaded {
-                        if let Some(tree) = &mut self.tree {
-                            let beginning_id = tree.leaf(beginning.id);
-                            let end_id = tree.leaf(end.id);
-                            let node_id = tree.node();
-                            tree.with_leaf(node_id, beginning_id);
-                            tree.with_leaf(node_id, end_id);
-                        }
+                        let _ = self.tree.leaf(beginning.id);
+                        let _ = self.tree.leaf(end.id);
+                        let node_id = self.tree.node();
+                        self.tree.with_leaf(node_id, beginning.id);
+                        self.tree.with_leaf(node_id, end.id);
                     }
                 });
             }
@@ -205,18 +210,16 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
     /// The `leaves` method creates a [`Leaf`] for each row in the table, and tracks their [`Uuid`]
     /// in the field `leaves`.
     pub fn leaves(&mut self, len: usize) {
-        if let Some(tree) = &mut self.tree {
-            let mut leaves = Vec::new();
-            let node_id = tree.node();
-            for _ in 0..(len - 1) {
-                let mut names = Generator::default();
-                let egui_id = egui::Id::new(names.next().unwrap());
-                let leaf_id = tree.leaf(egui_id);
-                leaves.push(leaf_id);
-                tree.with_leaf(node_id, leaf_id);
-            }
-            self.leaves = leaves;
+        let mut names = Generator::default();
+        let mut leaves = Vec::new();
+        let node_id = self.tree.node();
+        for _ in 0..(len - 1) {
+            let egui_id = egui::Id::new(names.next().unwrap());
+            let leaf = self.tree.leaf(egui_id);
+            leaves.push(leaf.id);
+            self.tree.with_leaf(node_id, egui_id);
         }
+        self.leaves = leaves;
     }
 
     /// UI display for the table view.
@@ -233,7 +236,7 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
             self.view_mut().sort_by_col(column, flag);
         }
         // Collect the ids of each row.
-        self.row_ids = rows.iter().map(|v| v.id().clone()).collect::<Vec<Uuid>>();
+        self.row_ids = rows.iter().map(|v| *v.id()).collect::<Vec<Uuid>>();
         if !self.loaded {
             self.leaves(rows.len());
         }
@@ -262,10 +265,12 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
             .sense(Sense::click())
             .cell_layout(Layout::left_to_right(Align::Center))
             .columns(Column::auto(), headers.len());
+        // Enable row tracking on the slider.
         if track_item {
             table = table.scroll_to_row(self.target, Some(Align::Center));
         }
-        if let Some(_) = self.row_focus.take() {
+        // Enable row tracking on keyboard entry.
+        if self.row_focus.take().is_some() {
             if let Some(index) = self.row_index {
                 table = table.scroll_to_row(index, Some(Align::Center));
             }
@@ -282,15 +287,25 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
                         header.col(|ui| {
                             ui.horizontal(|ui| {
                                 ui.strong(v);
+                                // Offset the column index if the checked column is not there.
+                                // Checked is the first column, so subtract index numbers greater
+                                // than one by one.
+                                // Since the "order by" check box for row zero is not visible when
+                                // the config for checked is false, the input from the user cannot
+                                // be zero.
                                 let flag = if self.config.checked && i > 0 {
                                     i - 1
                                 } else {
+                                    // If config is checked, pass i normally.
                                     i
                                 };
+                                // Flag indicates the column, while ord flag indicates the ordering
+                                // at the column.
                                 let symbol = match self.ord_flags[flag] {
                                     true => "⏷",
                                     false => "⏶",
                                 };
+                                let ord_button = ui.button(symbol);
                                 if ui.button(symbol).clicked {
                                     if self.config.checked && i > 0 {
                                         self.set_ord = Some(i - 1);
@@ -315,6 +330,7 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
                     let columns = row_data.values();
 
                     if self.config.checked {
+                        // Adds a checkbox column linked to the `checks` field.
                         if !self.checks.contains_key(row_id) {
                             self.checks.insert(*row_id, false);
                         }
@@ -380,17 +396,19 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
 
     /// Advances focus to the next row and returns the new row [`Uuid`].
     pub fn next_row(&mut self) -> Option<Uuid> {
+        // take a mutable reference to the index of the row
         if let Some(index) = &mut self.row_index {
             tracing::info!("Current index: {}", index);
             tracing::info!("Advancing row index.");
+            // Wraps to beginning if at the end
             if (*index + 1) > (self.row_ids.len() - 1) {
                 *index = 0;
+                tracing::info!("Wrapped row index to 0.");
             } else {
                 *index += 1;
                 tracing::info!("Adding one: {}", index);
             }
-            // self.row_index = Some(index);
-            // tracing::info!("Row index set to: {:?}", self.row_index);
+            // match the selected row id to the updated index.
             self.row_select = Some(self.row_ids[*index]);
             if let Some(id) = self.row_select {
                 tracing::info!("Row id: {}", id);

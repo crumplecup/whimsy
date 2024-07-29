@@ -103,7 +103,7 @@ impl From<&Option<ModifiersState>> for Modifiers {
 
 impl From<&Command> for Modifiers {
     fn from(cmd: &Command) -> Self {
-        Self::from(cmd.mods)
+        cmd.mods
     }
 }
 
@@ -142,7 +142,7 @@ impl Command {
     pub fn is_modifier(input: &str) -> IResult<&str, bool> {
         let (input, _) = Self::separator(input)?;
         let (_, mods) = opt(Self::parse_mod)(input)?;
-        if let Some(_) = mods {
+        if mods.is_some() {
             Ok((input, true))
         } else {
             Ok((input, false))
@@ -158,7 +158,7 @@ impl Command {
         let mut separated = false;
         let (rem, _) = space0(input)?;
         let (rem, sep) = opt(tag("+"))(rem)?;
-        if let Some(_) = sep {
+        if sep.is_some() {
             separated = true;
         }
         let (rem, _) = space0(rem)?;
@@ -278,7 +278,7 @@ impl CommandOptions {
     pub fn idx(&self) -> usize {
         match self {
             Self::Acts(acts) => acts[0].idx(),
-            Self::Commands(cmd) => 1000,
+            Self::Commands(_) => 1000,
         }
     }
 }
@@ -311,9 +311,7 @@ impl std::string::ToString for CommandOptions {
 
 impl<T: Into<Act>> From<T> for CommandOptions {
     fn from(act: T) -> Self {
-        let mut acts = Vec::new();
-        acts.push(act.into());
-        Self::Acts(acts)
+        Self::Acts(vec![act.into()])
     }
 }
 
@@ -362,7 +360,7 @@ impl CommandGroup {
         trace!("{:#?}", value);
         match value {
             Value::Table(t) => {
-                let command_queue = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
+                let command_queue = t.keys().cloned().collect::<Vec<String>>();
                 for key in command_queue {
                     trace!("Reading {}", &key);
                     match key.as_ref() {
@@ -450,6 +448,7 @@ impl Columnar for CommandGroup {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+/// The `CommandMode` struct is a wrapper around a [`ChoiceMap`].
 pub enum CommandMode {
     Normal(ChoiceMap),
 }
@@ -479,9 +478,16 @@ impl Default for CommandMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, Deserialize, Serialize)]
+/// The `Choices` struct maps user commands to program responses.  The type is a wrapper around a
+/// [`HashMap`] relating each possible [`Command`] to its associated [`CommandOptions`].  
+/// Keys represent valid commands available to the user within the current application state.
+/// Use a [`ChoiceMap`] to contain a set of possible `Choices`, using unique [`String`] command
+/// keys to switch between different choice sets.
+/// The [`CommandMode`] is a wrapper around a [`ChoiceMap`].
 pub struct Choices(pub HashMap<Command, CommandOptions>);
 
 impl Choices {
+    /// Creates an empty `Choices` struct from the default implementation.
     pub fn new() -> Self {
         Self::default()
     }
@@ -502,7 +508,7 @@ impl Choices {
         match value {
             Value::Table(t) => {
                 let mut choices = HashMap::new();
-                let command_queue = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
+                let command_queue = t.keys().cloned().collect::<Vec<String>>();
                 for key in command_queue {
                     info!("Reading {}", &key);
                     if let Value::String(s) = &value[&key] {
@@ -540,13 +546,13 @@ impl Choices {
     pub fn try_from_toml(value: &Value) -> Option<Self> {
         let mut choices = Choices::new();
         if let Ok(entry) = Self::from_toml::<AppAct>(value) {
-            choices.extend(entry.0.into_iter());
+            choices.extend(entry.0);
         }
         if let Ok(entry) = Self::from_toml::<EguiAct>(value) {
-            choices.extend(entry.0.into_iter());
+            choices.extend(entry.0);
         }
         if let Ok(entry) = Self::from_toml::<NamedAct>(value) {
-            choices.extend(entry.0.into_iter());
+            choices.extend(entry.0);
         }
         if choices.is_empty() {
             None
@@ -560,7 +566,7 @@ impl Choices {
         trace!("{:#?}", value);
         match value {
             Value::Table(t) => {
-                let command_queue = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
+                let command_queue = t.keys().cloned().collect::<Vec<String>>();
 
                 for key in command_queue {
                     trace!("Reading {}", &key);
@@ -616,7 +622,7 @@ impl ChoiceMap {
         trace!("{:#?}", value);
         match value {
             Value::Table(t) => {
-                let keys = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
+                let keys = t.keys().cloned().collect::<Vec<String>>();
                 for key in keys {
                     if let Some(c) = Choices::try_from_toml(&t[&key]) {
                         choice_map.0.insert(key, c);
@@ -646,7 +652,7 @@ impl ChoiceMap {
             choice_map.0.extend(c.0);
         }
         let commands = &config["commands"];
-        choice_map.command_group(&commands)?;
+        choice_map.command_group(commands)?;
         trace!("Choices: {:#?}", choice_map);
         Ok(choice_map)
     }
@@ -655,11 +661,11 @@ impl ChoiceMap {
         trace!("{:#?}", value);
         match value {
             Value::Table(t) => {
-                let command_queue = t.keys().map(|k| k.clone()).collect::<Vec<String>>();
+                let command_queue = t.keys().cloned().collect::<Vec<String>>();
 
                 for key in command_queue {
                     trace!("Reading {}", &key);
-                    if let Some(_) = self.0.get(&key) {
+                    if self.0.contains_key(&key) {
                         let group = CommandGroup::from_toml(&key, &t[&key]);
                         if let Some(cmds) = group {
                             if let Some(normal) = self.0.get_mut("normal") {
@@ -782,8 +788,8 @@ impl Filtration<CommandTable, bool> for CommandTable {
     fn filter(self, filter: &bool) -> Self {
         let values = self
             .iter()
-            .cloned()
             .filter(|v| v.visible == *filter)
+            .cloned()
             .collect::<Vec<CommandRow>>();
         CommandTable(values)
     }
@@ -803,7 +809,7 @@ impl From<&Choices> for CommandTable {
 impl From<&ChoiceMap> for CommandTable {
     fn from(choice_map: &ChoiceMap) -> Self {
         let mut rows = Vec::new();
-        for (_, choices) in &choice_map.0 {
+        for choices in choice_map.0.values() {
             let table = Self::from(choices);
             rows.extend(table.0);
         }
@@ -818,11 +824,6 @@ impl From<&CommandMode> for CommandTable {
         }
     }
 }
-// pub command_view: TableView<CommandTable, CommandRow, bool>,
-// /// Lookup keys for the [`ChoiceMap`] passed down from the global state.
-// pub command_keys: Option<(String, Option<Command>)>,
-// /// Active [`ChoiceMap`] from the `command` field of [`State`].
-// pub command_tree: CommandMode,
 
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CommandView {

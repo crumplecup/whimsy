@@ -10,7 +10,7 @@ pub struct Tree {
     /// The `flags` field indicates if a given window has been loaded into the tree.
     pub flags: HashMap<Uuid, bool>,
     /// The `leaves` field holds focus points of type ['Leaf'].
-    pub leaves: HashMap<Uuid, Leaf>,
+    pub leaves: HashMap<egui::Id, Leaf>,
     /// The `nodes` field holds focus points of type ['Node'].
     pub nodes: HashMap<Uuid, Node>,
     /// The `windows` field holds the ids of all windows in the user interface.
@@ -36,8 +36,12 @@ impl Tree {
     }
 
     /// Creates a [`Leaf`] from an `id` of type [`egui::Id`].
-    pub fn leaf(&mut self, id: Id) -> Uuid {
-        Leaf::from_id(id, self)
+    pub fn leaf(&mut self, id: Id) -> &Leaf {
+        Leaf::lazy_new(id, self)
+    }
+
+    pub fn get_leaf(&self, id: &egui::Id) -> Option<&Leaf> {
+        self.leaves.get(id)
     }
 
     /// Registers a [`Node`] in the user interface.
@@ -57,6 +61,10 @@ impl Tree {
         id
     }
 
+    /// Returns the index of the current window in the `windows` field.
+    pub fn window_index(&self) -> usize {
+        self.window_index
+    }
     /// Sets the active focus point to an `id` of type [`egui::Id`].
     pub fn select(&mut self, id: Id) {
         self.select = Some(id);
@@ -72,10 +80,14 @@ impl Tree {
         self.select = None;
     }
 
-    pub fn with_leaf(&mut self, leaf: Uuid, node: Uuid) {
-        Node::with_leaf(leaf, node, self);
+    /// Add the `leaf` to the given `node` in the `Tree`.
+    /// Wraps [`Node::with_leaf`].
+    pub fn with_leaf(&mut self, node: Uuid, leaf: egui::Id) {
+        Node::with_leaf(node, leaf, self);
     }
 
+    /// Add the given `node` to the `Tree`.
+    /// Wrapper for insert in the `nodes` HashMap.
     pub fn with_node(&mut self, node: Node) {
         self.nodes.insert(node.id, node);
     }
@@ -92,7 +104,7 @@ impl Tree {
             .iter()
             // .map(|(k, v)| (k, v))
             .filter(|(_, v)| v.window == Some(window))
-            .map(|(k, _)| k.clone())
+            .map(|(k, _)| *k)
             .collect::<Vec<Uuid>>()
     }
 
@@ -160,48 +172,38 @@ impl Tree {
     /// Advances focus to the next child node of the current [`Node`] in `nodes`.  Calls [`Node::next_node`] internally to
     /// track node order.
     pub fn next_node_inner(&mut self) -> Option<Uuid> {
-        if let Some(node) = self.nodes.get_mut(&self.current_node()) {
-            Some(node.next_node())
-        } else {
-            None
-        }
+        self.nodes
+            .get_mut(&self.current_node())
+            .map(|n| n.next_node())
     }
 
     /// Moves focus to the previous child node of the current [`Node`] in `nodes`.  Calls [`Node::previous_node`] internally
     /// to track node order.
     pub fn previous_node_inner(&mut self) -> Option<Uuid> {
-        if let Some(node) = self.nodes.get_mut(&self.current_node()) {
-            Some(node.previous_node())
-        } else {
-            None
-        }
+        self.nodes
+            .get_mut(&self.current_node())
+            .map(|n| n.previous_node())
     }
 
-    /// Returns the [`Uuid`] of the active [`Leaf`] in focus, if present.
-    pub fn current_leaf(&self) -> Option<Uuid> {
-        if let Some(node) = self.nodes.get(&self.current_node()) {
-            Some(node.current_leaf())
-        } else {
-            None
-        }
+    /// Returns the [`egui::Id`] of the active [`Leaf`] in focus, if present.
+    pub fn current_leaf(&self) -> Option<egui::Id> {
+        self.nodes
+            .get(&self.current_node())
+            .map(|n| n.current_leaf())
     }
 
     /// Advances focus to the next [`Leaf`] in `leaves`.
-    pub fn next_leaf(&mut self) -> Option<Uuid> {
-        if let Some(node) = self.nodes.get_mut(&self.current_node()) {
-            Some(node.next_leaf())
-        } else {
-            None
-        }
+    pub fn next_leaf(&mut self) -> Option<egui::Id> {
+        self.nodes
+            .get_mut(&self.current_node())
+            .map(|n| n.next_leaf())
     }
 
     /// Move focus to the previous ['Leaf'] in `leaves`.
-    pub fn previous_leaf(&mut self) -> Option<Uuid> {
-        if let Some(node) = self.nodes.get_mut(&self.current_node()) {
-            Some(node.previous_leaf())
-        } else {
-            None
-        }
+    pub fn previous_leaf(&mut self) -> Option<egui::Id> {
+        self.nodes
+            .get_mut(&self.current_node())
+            .map(|n| n.previous_leaf())
     }
 
     /// Sets the `select` field to the current [`Leaf`] in focus.
@@ -265,9 +267,9 @@ pub struct Node {
     /// The vector in the `nodes` field contains the [`Uuid`] of each child [`Node`] claiming this node
     /// as a parent.
     pub nodes: Vec<Uuid>,
-    /// The vector in the `leaves` field contains the [`Uuid`] of each child [`Leaf`] claiming this
+    /// The vector in the `leaves` field contains the [`egui::Id`] of each child [`Leaf`] claiming this
     /// node as a parent.
-    pub leaves: Vec<Uuid>,
+    pub leaves: Vec<egui::Id>,
     /// The `window` field contains the [`Uuid`] of the associated window.
     pub window: Option<Uuid>,
     // Index of the current focus child [`Node`].
@@ -302,13 +304,13 @@ impl Node {
     /// Uses the `node_id` and `leaf_id` to obtain mutable references to the node and leaf
     /// respectively within the [`Tree`] parameter `tree`.  Adds the given leaf to the child leaves
     /// of the given node.
-    pub fn with_leaf(node_id: Uuid, leaf_id: Uuid, tree: &mut Tree) {
+    pub fn with_leaf(node_id: Uuid, leaf_id: egui::Id, tree: &mut Tree) {
         let leaf = tree.leaves.get_mut(&leaf_id);
         let node = tree.nodes.get_mut(&node_id);
         if let Some(l) = leaf {
             l.parent = Some(node_id);
             if let Some(n) = node {
-                n.leaves.push(l.leaf_id);
+                n.leaves.push(l.id);
             }
         }
     }
@@ -327,14 +329,14 @@ impl Node {
         self.window = Some(window);
     }
 
-    /// The `current_leaf` method returns the [`Uuid`] of the [`Leaf`] in `leaves` at the `leaf_index`.
-    pub fn current_leaf(&self) -> Uuid {
+    /// The `current_leaf` method returns the [`egui::Id`] of the [`Leaf`] in `leaves` at the `leaf_index`.
+    pub fn current_leaf(&self) -> egui::Id {
         let id = self.leaves[self.leaf_index];
-        info!("Current leaf is {}", id);
+        info!("Current leaf is {:?}", id);
         id
     }
 
-    pub fn next_leaf(&mut self) -> Uuid {
+    pub fn next_leaf(&mut self) -> egui::Id {
         if self.leaf_index == (self.leaves.len() - 1) {
             self.leaf_index = 0;
         } else {
@@ -342,18 +344,18 @@ impl Node {
         }
         info!("Leaf index is {}", self.leaf_index);
         let id = self.leaves[self.leaf_index];
-        info!("Next leaf is {}", id);
+        info!("Next leaf is {:?}", id);
         id
     }
 
-    pub fn previous_leaf(&mut self) -> Uuid {
+    pub fn previous_leaf(&mut self) -> egui::Id {
         if self.leaf_index == 0 {
             self.leaf_index = self.leaves.len() - 1;
         } else {
             self.leaf_index -= 1;
         }
         let id = self.leaves[self.leaf_index];
-        info!("Previous leaf is {}", id);
+        info!("Previous leaf is {:?}", id);
         id
     }
 
@@ -393,24 +395,24 @@ impl Node {
 pub struct Leaf {
     /// The `id` field is the [`egui::Id`] of the visual element.
     pub id: Id,
-    /// The `leaf_id` field is the [`Uuid`] tracked by the [`Tree`].
-    pub leaf_id: Uuid,
     /// The `parent` field is the [`Uuid`] of the parent [`Node`].
     pub parent: Option<Uuid>,
 }
 
 impl Leaf {
-    pub fn from_id(id: Id, tree: &mut Tree) -> Uuid {
-        // Creates a new internal id.
-        let leaf_id = Uuid::new_v4();
-        // Default to None for parent node.
-        let leaf = Self {
-            id,
-            leaf_id,
-            parent: None,
-        };
-        // Attach to focus tree.
-        tree.leaves.insert(leaf_id, leaf);
-        leaf_id
+    pub fn lazy_new(id: egui::Id, tree: &mut Tree) -> &Leaf {
+        tree.leaves
+            .entry(id)
+            .or_insert_with(|| Self { id, parent: None })
     }
+    // pub fn from_id(id: Id, tree: &mut Tree) -> Uuid {
+    //     // Default to None for parent node.
+    //     let leaf = Self {
+    //         id,
+    //         parent: None,
+    //     };
+    //     // Attach to focus tree.
+    //     tree.leaves.insert(leaf_id, leaf);
+    //     leaf_id
+    // }
 }

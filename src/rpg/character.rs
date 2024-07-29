@@ -447,6 +447,45 @@ pub enum EncumbranceType {
     Dodge,
 }
 
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
+pub struct EncumbranceField {
+    weight: String,
+    enc_move: String,
+    dodge: String,
+    id: uuid::Uuid,
+}
+
+impl EncumbranceField {
+    pub fn new(weight: &str, enc_move: &str, dodge: &str) -> Self {
+        Self {
+            weight: weight.to_string(),
+            enc_move: enc_move.to_string(),
+            dodge: dodge.to_string(),
+            id: uuid::Uuid::new_v4(),
+        }
+    }
+}
+
+impl table::Columnar for EncumbranceField {
+    fn names() -> Vec<String> {
+        EncumbranceType::iter()
+            .map(|v| v.to_string())
+            .collect::<Vec<String>>()
+    }
+
+    fn values(&self) -> Vec<String> {
+        vec![
+            self.weight.clone(),
+            self.enc_move.clone(),
+            self.dodge.clone(),
+        ]
+    }
+
+    fn id(&self) -> &uuid::Uuid {
+        &self.id
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub struct Encumbrance {
     weight: EncumbranceWeight,
@@ -462,6 +501,7 @@ impl Encumbrance {
             EncumbranceType::Dodge => self.dodge.value(level),
         }
     }
+
     pub fn columns(&self, level: &EncumbranceLevel) -> Vec<String> {
         let mut values = Vec::new();
         values.push(level.name());
@@ -472,12 +512,23 @@ impl Encumbrance {
 
         values
     }
+
+    pub fn iter_columns(&self) -> EncumbranceIter {
+        EncumbranceIter::from(self)
+    }
 }
 
-// impl Columnar for EncumbranceType
+// impl table::Tabular<EncumbranceField> for Encumbrance {
+//     fn headers() -> Vec<String> {
+//         EncumbranceType::iter().map(|v| v.to_string()).collect::<Vec<String>>()
+//     }
+//
+//     fn rows(&self) -> Vec<EncumbranceField> {
+//
+//     }
+// }
+
 // impl Tabular for Encumbrance
-// Create encumbrance iterator for table view
-// Pipe to iter_cols method for encumbrance
 // Create a character sheet that holds multiple table views in a single window
 
 impl From<&Stats> for Encumbrance {
@@ -489,6 +540,35 @@ impl From<&Stats> for Encumbrance {
             weight,
             enc_move,
             dodge,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EncumbranceIter {
+    values: Encumbrance,
+    type_of: EncumbranceLevelIter,
+}
+
+impl Iterator for EncumbranceIter {
+    type Item = EncumbranceField;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(x) = self.type_of.next() {
+            let columns = self.values.columns(&x);
+            let item = EncumbranceField::new(&columns[0], &columns[1], &columns[2]);
+            Some(item)
+        } else {
+            None
+        }
+    }
+}
+
+impl From<&Encumbrance> for EncumbranceIter {
+    fn from(value: &Encumbrance) -> Self {
+        Self {
+            values: *value,
+            type_of: EncumbranceLevel::iter(),
         }
     }
 }
@@ -616,7 +696,23 @@ impl From<&Stats> for EncumbranceDodge {
     }
 }
 
+#[derive(
+    Debug,
+    Default,
+    Copy,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Ord,
+    Hash,
+    Display,
+    EnumIter,
+    Serialize,
+    Deserialize,
+)]
 pub enum EncumbranceLevel {
+    #[default]
     None,
     Light,
     Medium,

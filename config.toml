@@ -18,6 +18,7 @@ decorations = "<alt> + d"
 fullscreen = "<alt> + f"
 maximize = "<alt> + s"
 minimize = "<alt> + S"
+active_tab = "t"
 
 # named keys
 enter = "Enter"
@@ -26,6 +27,15 @@ arrow_left = "ArrowLeft"
 arrow_right = "ArrowRight"
 arrow_up = "ArrowUp"
 arrow_down = "ArrowDown"
+
+# egui_dock actions
+select_current = "c"
+next_tab = "f"
+previous_tab = "F"
+next_node = "<cr> + f"
+previous_node = "<cr> + F"
+next_surface = "s"
+previous_surface = "S"
 
 [groups.window]
 menu = "g"
@@ -53,3 +63,11 @@ previous_window = "<cr> + V"
 name = "Navigation"
 binding = "<cr> + e"
 help = "Navigate focus points within the GUI."
+
+[groups.diagnostics]
+inspect_records = "r"
+
+[commands.diagnostics]
+name = "Diagnostics"
+binding = "<cr> + D"
+help = "Diagnostics for developer use."
