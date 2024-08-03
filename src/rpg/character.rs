@@ -1,31 +1,130 @@
-use crate::table;
+use crate::{
+    rpg::players::tab::TabView,
+    table::{Columnar, Filtration, TableView, Tabular},
+};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+/// The `Character` struct holds data related to a player character.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    derive_getters::Getters,
+    derive_setters::Setters,
+)]
+#[setters(prefix = "with_", borrow_self)]
 pub struct Character {
+    /// Physical attributes defining the capabilities of the character.
     attributes: Attributes,
+    /// Id Source for attribute table.
+    attribute_id: String,
+    /// Biographical data about a character.
+    biography: Biography,
+    /// Id Source for biography table.
+    biography_id: String,
+    /// Level of encumbrance the character is currently operating under.
     encumbrance: Encumbrance,
+    /// Id Source for encumbrance table.
+    encumbrance_id: String,
+    /// Unique identifier assigned to the hosting tab.
+    #[setters(strip_option)]
+    identifier: Option<String>,
+    /// Basic statistics used for combat and movement calculations.
     stats: Stats,
+    /// Id Source for basic stats table.
+    stats_id: String,
 }
 
 impl Character {
+    /// The `new` method creates an instance of `Character` from the provided `attributes`.
+    /// Derives [`Stats`] from [`Attributes`].
+    /// Derives [`Encumbrance`] from [`Stats`].
     pub fn new(attributes: Attributes) -> Self {
         let stats = Stats::from(&attributes);
         let encumbrance = Encumbrance::from(&stats);
+        let biography = Default::default();
+        let mut id = crate::identifier::Identifier::default();
+        let identifier = None;
         Self {
             attributes,
-            stats,
+            attribute_id: id.name(),
+            biography,
+            biography_id: id.name(),
             encumbrance,
+            encumbrance_id: id.name(),
+            identifier,
+            stats,
+            stats_id: id.name(),
         }
     }
 
-    pub fn attributes(&self) -> &Attributes {
-        &self.attributes
+    /// The `view` method displays the data in `Character` within an [`egui::Ui`].
+    pub fn view(&self, ui: &mut egui::Ui, name: &str) {
+        ui.label(format!("Character Name: {}", self.biography.name()));
+        ui.label(format!("Player Name: {}", self.biography.player()));
+        self.attributes.view(ui, name, &self.attribute_id);
+        self.stats.view(ui, name, &self.stats_id);
+        self.encumbrance.view(ui, name, &self.encumbrance_id);
+    }
+
+    pub fn name(&self) -> &String {
+        self.biography.name()
+    }
+
+    /// Update the name of the character to `name`.
+    /// Wraps [`Biography::with_name`].
+    pub fn with_name(mut self, name: &str) -> Self {
+        self.biography = self.biography.with_name(name.to_string());
+        self
+    }
+
+    /// Update the player name associated with the character to `player`.
+    /// Wraps [`Biography::with_player`].
+    pub fn with_player(mut self, player: &str) -> Self {
+        self.biography = self.biography.with_player(player.to_string());
+        self
     }
 }
 
+/// The `Biography` struct holds personal details about the character that do not have a
+/// corresponding game mechanic, but contain information relevant to the player.
+/// Uses [`derive_getters::Getters`] to return values from private fields in the struct.
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    derive_getters::Getters,
+    derive_setters::Setters,
+    derive_builder::Builder,
+)]
+#[setters(prefix = "with_")]
+#[builder(setter(into), default)]
+pub struct Biography {
+    /// The character name.
+    name: String,
+    /// The player name.
+    player: String,
+}
+
+/// The `AttributeType` enum classifies attributes into variants.
+/// Corresponds to field values in the [`Attributes`] struct.
+/// We use [`AttributeType::Strength`] as an aribtrary default variant in case the user wants to
+/// create the type first and set the value at a later time.
+/// Uses [`derive_more::Display`] to implement the [`Display`] trait.
+/// Uses [`strum_macros::EnumIter`] to implement the [`Iterator`] trait.
 #[derive(
     Debug,
     Default,
@@ -36,38 +135,88 @@ impl Character {
     Eq,
     Ord,
     Hash,
-    Display,
     EnumIter,
     Serialize,
     Deserialize,
 )]
 pub enum AttributeType {
+    /// Physical strength.
     #[default]
     Strength,
+    /// Speed and flexibility.
     Dexterity,
+    /// Capacity of thought.
     Intelligence,
+    /// Integrity of constitution.
     Health,
+    /// Integer representation of life essence.
     HitPoints,
+    /// Capacity for focus and determination.
     Willpower,
+    /// Ability to sense and interpret external events.
     Perception,
+    /// Integer representation of remaining stamina.
     Fatigue,
 }
 
+impl fmt::Display for AttributeType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = match *self {
+            Self::Strength => "Strength",
+            Self::Dexterity => "Dexterity",
+            Self::Intelligence => "Intelligence",
+            Self::Health => "Health",
+            Self::HitPoints => "Hit Points",
+            Self::Willpower => "Willpower",
+            Self::Perception => "Perception",
+            Self::Fatigue => "Fatigue",
+        };
+        write!(f, "{}", value)
+    }
+}
+
+/// The `Attributes` struct holds the attribute values for a [`Character`].
+/// The fields of `Attributes` correspond to the variants of [`AttributeType`].
 #[derive(
-    Debug, Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize,
+    Debug,
+    Default,
+    Copy,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    derive_getters::Getters,
+    derive_setters::Setters,
+    derive_builder::Builder,
 )]
+#[setters(prefix = "with_")]
+#[builder(setter(into), default)]
 pub struct Attributes {
+    /// Corresponds to [`AttributeType::Strength`].
     st: usize,
+    /// Corresponds to [`AttributeType::Dexterity`].
     dx: usize,
+    /// Corresponds to [`AttributeType::Intelligence`].
     iq: usize,
+    /// Corresponds to [`AttributeType::Health`].
     ht: usize,
+    /// Corresponds to [`AttributeType::HitPoints`].
     hp: usize,
+    /// Corresponds to [`AttributeType::Willpower`].
     will: usize,
+    /// Corresponds to [`AttributeType::Perception`].
     per: usize,
+    /// Corresponds to [`AttributeType::Fatigue`].
     fp: usize,
 }
 
 impl Attributes {
+    /// The `from_vec` is a convenience function for creating a new instance of `Attributes`.
+    /// The order of values in `vec` corresponds to the field order in `Attributes`.
     pub fn from_vec(vec: Vec<usize>) -> Self {
         Self {
             st: vec[0],
@@ -82,16 +231,7 @@ impl Attributes {
     }
 
     pub fn name(&self, attribute: &AttributeType) -> String {
-        match *attribute {
-            AttributeType::Strength => "Strength".to_string(),
-            AttributeType::Dexterity => "Dexterity".to_string(),
-            AttributeType::Intelligence => "Intelligence".to_string(),
-            AttributeType::Health => "Health".to_string(),
-            AttributeType::HitPoints => "Hit Points".to_string(),
-            AttributeType::Willpower => "Willpower".to_string(),
-            AttributeType::Perception => "Perception".to_string(),
-            AttributeType::Fatigue => "Fatigue".to_string(),
-        }
+        attribute.to_string()
     }
 
     pub fn value(&self, attribute: &AttributeType) -> usize {
@@ -108,6 +248,7 @@ impl Attributes {
     }
 
     /// Generates the display value for a given column.
+    /// Called by [`Self::columns`].
     pub fn column(&self, attribute: &AttributeType, column: &DisplayColumns) -> String {
         match *column {
             DisplayColumns::Name => self.name(attribute),
@@ -115,6 +256,10 @@ impl Attributes {
         }
     }
 
+    /// The `columns` method creates a table row corresponding to given attribute.
+    /// Contains a column for each variant of [`DisplayColumns`].
+    /// Iterates on [`DisplayColumns`] and calls [`Self::column`] using the given `attribute`.
+    /// Called by [`ColumnIterator::next`] and in turn by [`Self::iter_columns`].
     pub fn columns(&self, attribute: &AttributeType) -> Vec<String> {
         DisplayColumns::iter()
             .map(|c| self.column(attribute, &c))
@@ -124,9 +269,19 @@ impl Attributes {
     pub fn iter_columns(&self) -> ColumnIterator {
         ColumnIterator::from(self)
     }
+
+    /// Passing a `table_id` is necessary to ensure that multiple tables can inhabit the name tab.
+    pub fn view(&self, ui: &mut egui::Ui, name: &str, table_id: &str) {
+        ui.label("Attributes");
+        let mut tab = TabView::new(TableView::new(*self), name);
+        ui.push_id(table_id, |ui| {
+            tab.view_mut().table(ui);
+        });
+    }
 }
 
-impl table::Tabular<DisplayField> for Attributes {
+/// We implement the [`Tabular`] trait on [`DisplayField`] for `Attributes` because
+impl Tabular<DisplayField> for Attributes {
     fn headers() -> Vec<String> {
         DisplayColumns::iter()
             .map(|v| v.to_string())
@@ -140,14 +295,28 @@ impl table::Tabular<DisplayField> for Attributes {
     fn sort_by_col(&mut self, column_index: usize, reverse: bool) {}
 }
 
-impl table::Filtration<Attributes, String> for Attributes {
+impl Filtration<Attributes, String> for Attributes {
     fn filter(self, filter: &String) -> Self {
         self
     }
 }
 
 /// Describes a single attribute for display in a table.
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    derive_getters::Getters,
+    derive_setters::Setters,
+)]
+#[setters(prefix = "with_")]
 pub struct DisplayField {
     name: String,
     value: String,
@@ -165,7 +334,7 @@ impl DisplayField {
     }
 }
 
-impl table::Columnar for DisplayField {
+impl Columnar for DisplayField {
     fn names() -> Vec<String> {
         DisplayColumns::iter()
             .map(|v| v.to_string())
@@ -181,25 +350,42 @@ impl table::Columnar for DisplayField {
     }
 }
 
+/// The `ColumnIterator` struct implements the [`Iterator`] trait over [`Attributes`], returning
+/// the [`DisplayField`] associated with each attribute.
+/// Uses the [`AttributeTypeIter`] implementation to drive the iterator under the hood by stepping
+/// through the variants of [`AttributeType`], calling [`Attributes::columns`] on the attribute
+/// type, and creating a [`DisplayField`] from the results.
+#[derive(Debug, Clone)]
 pub struct ColumnIterator {
+    /// The `values` field hold the data over which the iterator will step to derive the resulting
+    /// item, the [`DisplayField`].
     values: Attributes,
-    type_of: AttributeTypeIter,
+    /// The `kind` field holds an [`AttributeTypeIter`], which iterates over [`AttributeType`].
+    /// We call next on this iterator to drive state in our own implementation of [`Iterator::next`].
+    kind: AttributeTypeIter,
 }
 
+/// We implement the [`From`] trait on [`Attributes`] for `ColumnIterator` as the preferred method
+/// of obtaining a new instance.
 impl From<&Attributes> for ColumnIterator {
+    /// [`Attributes`] are [`Copy`], so we can dereference it to obtain `values`.
+    /// We create an [`AttributeTypeIter`] for the `kind` field by calling [`AttributeType::iter`].
     fn from(value: &Attributes) -> Self {
         Self {
             values: *value,
-            type_of: AttributeType::iter(),
+            kind: AttributeType::iter(),
         }
     }
 }
 
+/// We want to access the fields of [`Attributes`] one at a time, making sure to visit each field.
+/// From each field, we want to derive the [`DisplayField`], for use in generating a table row.
 impl Iterator for ColumnIterator {
+    /// The type for `Item` is [`DisplayField`], which is formatted for generating a table row.
     type Item = DisplayField;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(x) = self.type_of.next() {
+        if let Some(x) = self.kind.next() {
             let columns = self.values.columns(&x);
             let item = DisplayField::new(&columns[0], &columns[1]);
             Some(item)
@@ -240,7 +426,21 @@ impl DisplayColumns {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    derive_new::new,
+    derive_getters::Getters,
+    derive_setters::Setters,
+    derive_builder::Builder,
+)]
+#[setters(prefix = "with_")]
+#[builder(setter(into), default)]
 pub struct Stats {
     /// The maximum weight you can lift over your head with one hand one second.
     /// (ST * ST)/5
@@ -290,9 +490,17 @@ impl Stats {
     pub fn iter_columns(&self) -> StatColIter {
         StatColIter::from(self)
     }
+
+    pub fn view(&self, ui: &mut egui::Ui, name: &str, table_id: &str) {
+        ui.label("Basic Stats");
+        let mut tab = TabView::new(TableView::new(self.clone()), name);
+        ui.push_id(table_id, |ui| {
+            tab.view_mut().table(ui);
+        });
+    }
 }
 
-impl table::Tabular<DisplayField> for Stats {
+impl Tabular<DisplayField> for Stats {
     fn headers() -> Vec<String> {
         DisplayColumns::iter()
             .map(|v| v.to_string())
@@ -306,7 +514,7 @@ impl table::Tabular<DisplayField> for Stats {
     fn sort_by_col(&mut self, column_index: usize, reverse: bool) {}
 }
 
-impl table::Filtration<Stats, String> for Stats {
+impl Filtration<Stats, String> for Stats {
     fn filter(self, filter: &String) -> Self {
         self
     }
@@ -351,16 +559,17 @@ impl From<&Attributes> for Stats {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct StatColIter {
     values: Stats,
-    type_of: StatTypeIter,
+    kind: StatTypeIter,
 }
 
 impl From<&Stats> for StatColIter {
     fn from(value: &Stats) -> Self {
         Self {
             values: value.clone(),
-            type_of: StatType::iter(),
+            kind: StatType::iter(),
         }
     }
 }
@@ -369,7 +578,7 @@ impl Iterator for StatColIter {
     type Item = DisplayField;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(x) = self.type_of.next() {
+        if let Some(x) = self.kind.next() {
             let columns = self.values.columns(&x);
             let item = DisplayField::new(&columns[0], &columns[1]);
             Some(item)
@@ -379,7 +588,24 @@ impl Iterator for StatColIter {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    derive_new::new,
+    derive_getters::Getters,
+    derive_setters::Setters,
+    derive_builder::Builder,
+)]
+#[setters(prefix = "with_")]
+#[builder(setter(into), default)]
 pub struct CombatStats {
     damage_thrust: DamageKind,
     damage_swing: DamageKind,
@@ -413,16 +639,13 @@ impl Default for CombatStats {
     EnumIter,
     Serialize,
     Deserialize,
+    derive_new::new,
+    smart_default::SmartDefault,
 )]
 pub enum DamageKind {
+    #[default]
     Thrust(usize),
     Swing(usize),
-}
-
-impl Default for DamageKind {
-    fn default() -> Self {
-        Self::Swing(Default::default())
-    }
 }
 
 #[derive(
@@ -439,6 +662,7 @@ impl Default for DamageKind {
     EnumIter,
     Serialize,
     Deserialize,
+    derive_new::new,
 )]
 pub enum EncumbranceType {
     #[default]
@@ -447,8 +671,23 @@ pub enum EncumbranceType {
     Dodge,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    derive_getters::Getters,
+    derive_setters::Setters,
+)]
+#[setters(prefix = "with_")]
 pub struct EncumbranceField {
+    name: String,
     weight: String,
     enc_move: String,
     dodge: String,
@@ -456,8 +695,9 @@ pub struct EncumbranceField {
 }
 
 impl EncumbranceField {
-    pub fn new(weight: &str, enc_move: &str, dodge: &str) -> Self {
+    pub fn new(name: &str, weight: &str, enc_move: &str, dodge: &str) -> Self {
         Self {
+            name: name.to_string(),
             weight: weight.to_string(),
             enc_move: enc_move.to_string(),
             dodge: dodge.to_string(),
@@ -466,15 +706,18 @@ impl EncumbranceField {
     }
 }
 
-impl table::Columnar for EncumbranceField {
+impl Columnar for EncumbranceField {
     fn names() -> Vec<String> {
-        EncumbranceType::iter()
+        let mut values = EncumbranceType::iter()
             .map(|v| v.to_string())
-            .collect::<Vec<String>>()
+            .collect::<Vec<String>>();
+        values.insert(0, "Level".to_string());
+        values
     }
 
     fn values(&self) -> Vec<String> {
         vec![
+            self.name.clone(),
             self.weight.clone(),
             self.enc_move.clone(),
             self.dodge.clone(),
@@ -486,7 +729,23 @@ impl table::Columnar for EncumbranceField {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Default,
+    Copy,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    derive_new::new,
+    derive_getters::Getters,
+    derive_setters::Setters,
+)]
+#[setters(prefix = "with_")]
 pub struct Encumbrance {
     weight: EncumbranceWeight,
     enc_move: EncumbranceMove,
@@ -516,20 +775,33 @@ impl Encumbrance {
     pub fn iter_columns(&self) -> EncumbranceIter {
         EncumbranceIter::from(self)
     }
+
+    pub fn view(&self, ui: &mut egui::Ui, name: &str, table_id: &str) {
+        ui.label("Encumbrance");
+        let mut tab = TabView::new(TableView::new(*self), name);
+        ui.push_id(table_id, |ui| {
+            tab.view_mut().table(ui);
+        });
+    }
 }
 
-// impl table::Tabular<EncumbranceField> for Encumbrance {
-//     fn headers() -> Vec<String> {
-//         EncumbranceType::iter().map(|v| v.to_string()).collect::<Vec<String>>()
-//     }
-//
-//     fn rows(&self) -> Vec<EncumbranceField> {
-//
-//     }
-// }
+impl Tabular<EncumbranceField> for Encumbrance {
+    fn headers() -> Vec<String> {
+        EncumbranceField::names()
+    }
 
-// impl Tabular for Encumbrance
-// Create a character sheet that holds multiple table views in a single window
+    fn rows(&self) -> Vec<EncumbranceField> {
+        self.iter_columns().collect::<Vec<EncumbranceField>>()
+    }
+
+    fn sort_by_col(&mut self, column_index: usize, reverse: bool) {}
+}
+
+impl Filtration<Encumbrance, String> for Encumbrance {
+    fn filter(self, filter: &String) -> Self {
+        self
+    }
+}
 
 impl From<&Stats> for Encumbrance {
     fn from(stats: &Stats) -> Self {
@@ -556,7 +828,7 @@ impl Iterator for EncumbranceIter {
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(x) = self.type_of.next() {
             let columns = self.values.columns(&x);
-            let item = EncumbranceField::new(&columns[0], &columns[1], &columns[2]);
+            let item = EncumbranceField::new(&columns[0], &columns[1], &columns[2], &columns[3]);
             Some(item)
         } else {
             None
@@ -573,7 +845,20 @@ impl From<&Encumbrance> for EncumbranceIter {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Default,
+    Copy,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    derive_getters::Getters,
+)]
 pub struct EncumbranceWeight {
     none: usize,
     light: usize,
@@ -612,7 +897,20 @@ impl From<&Stats> for EncumbranceWeight {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Default,
+    Copy,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    derive_getters::Getters,
+)]
 pub struct EncumbranceMove {
     none: usize,
     light: usize,
@@ -655,16 +953,39 @@ impl From<&Stats> for EncumbranceMove {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
+/// The `EncumbranceDodge` struct holds the dodge value for a [`Character`] at different levels of
+/// encumbrance.
+/// Fields in `EncumbranceDodge` correspond to the variants of [`EncumbranceLevel`].
+#[derive(
+    Debug,
+    Default,
+    Copy,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    derive_getters::Getters,
+)]
 pub struct EncumbranceDodge {
+    /// Corresponds to [`EncumbranceLevel::None`].
     none: usize,
+    /// Corresponds to [`EncumbranceLevel::Light`].
     light: usize,
+    /// Corresponds to [`EncumbranceLevel::Medium`].
     medium: usize,
+    /// Corresponds to [`EncumbranceLevel::Heavy`].
     heavy: usize,
+    /// Corresponds to [`EncumbranceLevel::XHeavy`].
     extra_heavy: usize,
 }
 
 impl EncumbranceDodge {
+    /// The `value` method returns the value of the field correpsonding to the [`EncumbranceLevel`]
+    /// provided in the `level` argument.
     pub fn value(&self, level: &EncumbranceLevel) -> usize {
         match *level {
             EncumbranceLevel::None => self.none,
@@ -676,9 +997,10 @@ impl EncumbranceDodge {
     }
 }
 
+/// # Safety
+/// Since basic speed has a minimum of one, at extra heavy usize will not drop below zero.
 impl From<&Stats> for EncumbranceDodge {
     fn from(stats: &Stats) -> Self {
-        // Since basic speed has a minimum of one, at extra heavy usize will not drop below zero.
         // Dodge is basic speed plus 3, dropping fractions [BS - 17]
         let dodge = stats.basic_speed.floor() as usize + 3;
         let none = dodge;
@@ -723,11 +1045,11 @@ pub enum EncumbranceLevel {
 impl EncumbranceLevel {
     pub fn name(&self) -> String {
         match *self {
-            EncumbranceLevel::None => "None".to_string(),
-            EncumbranceLevel::Light => "Light".to_string(),
-            EncumbranceLevel::Medium => "Medium".to_string(),
-            EncumbranceLevel::Heavy => "Heavy".to_string(),
-            EncumbranceLevel::XHeavy => "Extra Heavy".to_string(),
+            Self::None => "None".to_string(),
+            Self::Light => "Light".to_string(),
+            Self::Medium => "Medium".to_string(),
+            Self::Heavy => "Heavy".to_string(),
+            Self::XHeavy => "Extra Heavy".to_string(),
         }
     }
 }

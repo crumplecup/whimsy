@@ -1,95 +1,149 @@
 use crate::controls::act;
+use crate::identifier::Identifier;
 use crate::observer;
-use crate::rpg::{character, players};
-use crate::table::{self, Columnar, Filtration, Tabular};
+use crate::rpg::character::{Attributes, Character, DisplayField};
+use crate::rpg::players;
+use crate::table::{Columnar, Filtration, TableView, Tabular};
 use derive_more::{Deref, DerefMut};
-use egui_dock::dock_state::surface_index;
-use egui_dock::dock_state::tree::{node_index, tab_index};
-use egui_dock::{NodeIndex, SurfaceIndex};
+// use egui_dock::dock_state::surface_index::SurfaceIndex;
+// use egui_dock::dock_state::tree::{node_index::NodeIndex, tab_index::TabIndex};
+use egui_dock::{NodeIndex, SurfaceIndex, TabIndex};
 use std::collections::HashSet;
 
 // pub type Tab = table::TableView<character::Attributes, character::DisplayField, String>;
-pub type Tab = TabView<character::Attributes, character::DisplayField, String>;
+/// The `Tab` type follows the naming convention of [`egui_dock`].
+/// We could stick this definition inside the impl of [`egui_dock::TabViewer`] for [`TabViewer`],
+/// but since we are constantly swapping it out with new variations in the development process, I
+/// placed it top of module for high visibility and easy access.
+///
+/// The [`TabView`] holds a view of a [`Attributes`], currently Paeva.
+/// The [`DisplayField`] defines the content of columns in the table.
+/// The [`String`] is the type used for enabling search within the contents of the table.
+pub type Tab = Character;
+// pub type Tab = TabView<Attributes, DisplayField, String>;
 
-#[derive(Debug, Clone, Default, PartialEq)]
+/// The `TabView` struct is a wrapper around a [`TableView`] that provides a unique name for the
+/// owning [`egui_dock::DockState`].
+/// The `data` field holds the original data used to generate the [`TableView`].
+/// The `view` field holds the possibly mutated version being displayed to the user.  The `view`
+/// field depends upon the `data` field to restore information that is lost when rendering, for
+/// example, filtered views.
+/// The [`TableView`] contains a similar pattern, so perhpas it is unnecessary here?
+#[derive(Debug, Clone, Default, PartialEq, derive_getters::Getters, derive_setters::Setters)]
+#[setters(prefix = "with_")]
 pub struct TabView<T: Tabular<U> + Filtration<T, V> + Clone, U: Columnar, V: Default> {
     name: String,
-    data: table::TableView<T, U, V>,
-    view: table::TableView<T, U, V>,
+    data: TableView<T, U, V>,
+    view: TableView<T, U, V>,
 }
 
 impl<T: Tabular<U> + Filtration<T, V> + Clone, U: Columnar + Clone, V: Default + Clone>
     TabView<T, U, V>
 {
-    pub fn new(data: table::TableView<T, U, V>, tab: &mut TabState) -> Self {
-        let name = tab.new_name();
+    /// The `new` method creates an instance of a `TabView` from a [`TableView`] `data`.
+    pub fn new(data: TableView<T, U, V>, name: &str) -> Self {
         let view = data.clone();
-        Self { name, data, view }
-    }
-
-    pub fn with_name(data: table::TableView<T, U, V>, name: String) -> Self {
-        let view = data.clone();
-        Self { name, data, view }
-    }
-
-    pub fn view(&self) -> &table::TableView<T, U, V> {
-        &self.view
-    }
-
-    pub fn name(&self) -> &String {
-        &self.name
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub enum ContextMenu {
-    #[default]
-    App,
-    Map,
-}
-
-#[derive(Debug, Clone)]
-pub struct TabContext {
-    kind: ContextMenu,
-    surface: SurfaceIndex,
-    node: NodeIndex,
-}
-
-impl TabContext {
-    pub fn new(kind: ContextMenu, surface: SurfaceIndex, node: NodeIndex) -> Self {
         Self {
-            kind,
-            surface,
-            node,
+            name: name.to_string(),
+            data,
+            view,
         }
     }
 
-    pub fn kind(&self) -> &ContextMenu {
-        &self.kind
+    /// The `named` method creates a new instance of a `TabView` with the title assigned to
+    /// `name`, otherwise following the same pattern as the [`Self::new`] method.
+    pub fn named(data: TableView<T, U, V>, name: &str) -> Self {
+        let name = name.to_string();
+        let view = data.clone();
+        Self { name, data, view }
+    }
+
+    /// The `view_mut` method provides a mutable reference to the [`TableView`] in the `view` field.
+    pub fn view_mut(&mut self) -> &mut TableView<T, U, V> {
+        &mut self.view
     }
 }
 
-#[derive(Debug)]
-pub struct TabViewer<'a> {
-    added_nodes: &'a mut Vec<TabContext>,
+/// The `ContextMenu` is the menu of user options that appears when clicking on the add button in
+/// the tab ui of an [`egui_dock::DockArea`], created by the [`TabState::ui`] method.
+/// Match on the `ContextMenu` when adding nodes from the `added_nodes` field of [`TabViewer`] in
+/// the method [`TabState::ui`].
+#[derive(
+    Debug,
+    Default,
+    Copy,
+    Clone,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    Ord,
+    Hash,
+    strum_macros::EnumIter,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+pub enum ContextMenu {
+    #[default]
+    /// The `App` variant indicates a menu-based interface using `egui`.
+    App,
+    /// The `Map` variant indicates a map-based interface using `galileo`.
+    Map,
 }
 
-impl egui_dock::TabViewer for TabViewer<'_> {
+#[derive(Debug, Clone, derive_new::new, derive_getters::Getters)]
+pub struct TabContext {
+    /// The `kind` field holds the [`ContextMenu`] offered to user when clicking the add tab
+    /// button.
+    kind: ContextMenu,
+    /// The `surface` field represents the "window" id in the [`egui_dock::DockArea`].
+    surface: SurfaceIndex,
+    /// The `node` field represents the "panel" id in the [`egui_dock::DockArea`].
+    node: NodeIndex,
+}
+
+#[derive(derive_new::new)]
+/// The `TabViewer` struct implements the [`egui_dock::TabViewer`] trait.
+pub struct TabViewer<'a, 'b> {
+    /// The `added_nodes` field holds a reference to any new tabs created by the user.
+    added_nodes: &'a mut Vec<TabContext>,
+    identifier: &'b mut Identifier,
+}
+
+impl egui_dock::TabViewer for TabViewer<'_, '_> {
     type Tab = Tab;
 
-    #[allow(unused_variables)]
+    /// The `title` method provides a unique id for [`egui`] to track, so each tab needs a unique
+    /// title.
     fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
-        tab.name().into()
+        if let Some(value) = tab.identifier() {
+            value.into()
+        } else {
+            let name = tab.name();
+            let id = self.identifier.number();
+            let concat = format!("{name}: {id}");
+            tab.with_identifier(concat.clone());
+            concat.into()
+        }
     }
 
+    /// The `ui` method presents the user with an interface inside the [`egui_dock::DockArea`].
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
-        tab.view.table(ui);
+        let name = tab.name();
+        ui.push_id(name, |ui| {
+            tab.view(ui, name);
+        });
+        // tab.view(ui, name);
     }
 
+    /// The `add_popup` method is an optional implementation to in this case to provide the add button with a
+    /// context menu.
     fn add_popup(&mut self, ui: &mut egui::Ui, surface: SurfaceIndex, node: NodeIndex) {
         ui.set_min_width(120.0);
         ui.style_mut().visuals.button_frame = false;
 
+        // Popup UI for the add button in a tab.
+        // Convert to a match statement using .to_string() for the button text.
+        // Use strum to enumerate through the ContextMenu, making the button and handler.
         if ui.button("App").clicked() {
             self.added_nodes
                 .push(TabContext::new(ContextMenu::App, surface, node));
@@ -102,33 +156,25 @@ impl egui_dock::TabViewer for TabViewer<'_> {
     }
 }
 
-impl<'a> TabViewer<'a> {
-    pub fn new(added_nodes: &'a mut Vec<TabContext>) -> Self {
-        Self { added_nodes }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, derive_getters::Getters, derive_new::new)]
 /// The `Record` struct identifies an active tab in the [`egui::DockState`].
 pub struct Record {
-    surface_index: surface_index::SurfaceIndex,
-    node_index: node_index::NodeIndex,
-    tab_index: tab_index::TabIndex,
+    /// The surface is the window area that holds panels and tabs.
+    /// The [`SurfaceIndex`] serves as the unique ID for surfaces in an [`egui_dock::DockState`].
+    surface_index: SurfaceIndex,
+    /// The node is the panel area within a window that holds tabs.
+    /// Nodes are contained within a surface and contain tabs.
+    /// The [`NodeIndex`] serves as the unique ID for nodes in an [`egui_dock::DockState`].
+    node_index: NodeIndex,
+    /// The tab is the endpoint that provides an [`egui`] interface to the user.
+    /// Each tab has a parent node and surface.
+    /// The [`TabIndex`] serves as the unique ID for tabs in an [`egui_dock::DockState`].
+    tab_index: TabIndex,
 }
 
 impl Record {
-    pub fn surface(&self) -> surface_index::SurfaceIndex {
-        self.surface_index
-    }
-
-    pub fn node(&self) -> node_index::NodeIndex {
-        self.node_index
-    }
-
-    pub fn tab(&self) -> tab_index::TabIndex {
-        self.tab_index
-    }
-
+    /// The `from_tab` method creates a `Record` from a provided `tab`.
+    /// Uses `tab` as the needle tab for the [`egui_dock::DockState::find_tab`] method.
     pub fn from_tab(tab: &Tab, tree: &egui_dock::DockState<Tab>) -> Option<Self> {
         if let Some((surface_index, node_index, tab_index)) = tree.find_tab(tab) {
             Some(Self {
@@ -142,33 +188,45 @@ impl Record {
     }
 }
 
+/// The `Records` struct is a wrapper around a vector of type [`Record`].
+/// Implements [`derive_more::Deref`] and [`derive_more::DerefMut`] to provide convenient access to
+/// the underlying vector.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Deref, DerefMut)]
 pub struct Records(Vec<Record>);
 
 impl Records {
-    pub fn surfaces(&self) -> Vec<surface_index::SurfaceIndex> {
+    /// The `surfaces` method returns a vector of type [`SurfaceIndex`].
+    /// Each [`SurfaceIndex`] refers to a valid surface in the [`egui_dock::DockState`].
+    pub fn surfaces(&self) -> Vec<SurfaceIndex> {
         let mut vec = self
             .iter()
-            .map(|r| r.surface())
-            .collect::<Vec<surface_index::SurfaceIndex>>();
+            .map(|r| r.surface_index())
+            .cloned()
+            .collect::<Vec<SurfaceIndex>>();
         vec.dedup();
         vec
     }
 
-    pub fn nodes(&self) -> Vec<node_index::NodeIndex> {
+    /// The `nodes` method returns a vector of type [`NodeIndex`].
+    /// Each [`NodeIndex`] refers to a valid node in the [`egui_dock::DockState`].
+    pub fn nodes(&self) -> Vec<NodeIndex> {
         let mut vec = self
             .iter()
-            .map(|r| r.node())
-            .collect::<Vec<node_index::NodeIndex>>();
+            .map(|r| r.node_index())
+            .cloned()
+            .collect::<Vec<NodeIndex>>();
         vec.dedup();
         vec
     }
 
-    pub fn tabs(&self) -> Vec<tab_index::TabIndex> {
+    /// The `tabs` method returns a vector of type [`TabIndex`].
+    /// Each [`TabIndex`] refers to a valid tab in the [`egui_dock::DockState`].
+    pub fn tabs(&self) -> Vec<TabIndex> {
         let mut vec = self
             .iter()
-            .map(|r| r.tab())
-            .collect::<Vec<tab_index::TabIndex>>();
+            .map(|r| r.tab_index())
+            .cloned()
+            .collect::<Vec<TabIndex>>();
         vec.dedup();
         vec
     }
@@ -178,7 +236,7 @@ impl Records {
     /// ids would be [1, 2, 4].  In this way, we can perform increment, decrement and wrapping
     /// operatings on the subset of remaining values using the vector index of node ids, but still index into the correct node in the
     /// `nodes` field using the value of node ids.
-    pub fn node_ids(&self, surface: &surface_index::SurfaceIndex) -> Vec<usize> {
+    pub fn node_ids(&self, surface: &SurfaceIndex) -> Vec<usize> {
         // Subset the nodes in the surface.
         let in_surface = self.clone().filter_surface(surface).nodes();
         // For each node index remaining, collect the index value in the `nodes` field.
@@ -195,7 +253,7 @@ impl Records {
     /// ids would be [1, 2, 4].  In this way, we can perform increment, decrement and wrapping
     /// operatings on the subset of remaining values using the vector index of node ids, but still index into the correct tab in the
     /// `tabs` field using the value of tab ids.
-    pub fn tab_ids(&self, node: &node_index::NodeIndex) -> Vec<usize> {
+    pub fn tab_ids(&self, node: &NodeIndex) -> Vec<usize> {
         // Subset the tabs in the node.
         let in_node = self.clone().filter_node(node).tabs();
         // For each tab index remaining, collect the index value in the `tabs` field.
@@ -207,23 +265,36 @@ impl Records {
             .collect::<Vec<usize>>()
     }
 
-    pub fn filter_surface(mut self, surface: &surface_index::SurfaceIndex) -> Self {
+    /// Obtain the subset of `Records` where the [`SurfaceIndex`] of the [`Record`] matches
+    /// `surface`.
+    /// Called by [`Self::node_ids`].
+    pub fn filter_surface(mut self, surface: &SurfaceIndex) -> Self {
         self.retain(|v| v.surface_index == *surface);
         self
     }
 
-    pub fn filter_node(mut self, node: &node_index::NodeIndex) -> Self {
+    /// Obtain the subset of `Records` where the [`NodeIndex`] of the [`Record`] matches
+    /// `node`.
+    /// Called by [`Self::tab_ids`].
+    pub fn filter_node(mut self, node: &NodeIndex) -> Self {
         self.retain(|v| v.node_index == *node);
         self
     }
 
-    pub fn filter_tab(mut self, tab: &tab_index::TabIndex) -> Self {
+    /// Obtain the subset of `Records` where the [`TabIndex`] of the [`Record`] matches
+    /// `tab`.
+    /// Unused within library.
+    pub fn filter_tab(mut self, tab: &TabIndex) -> Self {
         self.retain(|v| v.tab_index == *tab);
         self
     }
 }
 
 impl From<&egui_dock::DockState<Tab>> for Records {
+    /// We frequently need to refresh the `Records`, since the user can change the record by
+    /// interacting with the tabs or clicking the add tab button.
+    /// Implementing [`From`] for [`egui_dock::DockState<Tab>`] allows us to use the `from` method
+    /// to create a new `Record` from the current [`egui_dock::DockState`].
     fn from(tree: &egui_dock::DockState<Tab>) -> Self {
         let records = tree
             .iter_all_tabs()
@@ -252,23 +323,25 @@ impl From<&egui_dock::DockState<Tab>> for Records {
 /// when creating new tabs.
 /// The `observer` field controls observability, including logging using the `trace` crate and
 /// toast notifications using `egui-notify`.
+#[derive(derive_getters::Getters, derive_setters::Setters)]
+#[setters(prefix = "with_")]
 pub struct TabState {
     // The dock state tree.
     tree: egui_dock::DockState<Tab>,
     // Records of valid surface, node and tab states.
     records: Records,
     // Valid surfaces from `records`.
-    surfaces: Vec<surface_index::SurfaceIndex>,
+    surfaces: Vec<SurfaceIndex>,
     // Valid nodes from `records`.
-    nodes: Vec<node_index::NodeIndex>,
+    nodes: Vec<NodeIndex>,
     // Valid tabs from `records`.
-    tabs: Vec<tab_index::TabIndex>,
+    tabs: Vec<TabIndex>,
     // Active surface.
-    surface_index: Option<surface_index::SurfaceIndex>,
+    surface_index: Option<SurfaceIndex>,
     // Active node.
-    node_index: Option<node_index::NodeIndex>,
+    node_index: Option<NodeIndex>,
     // Active tab.
-    tab_index: Option<tab_index::TabIndex>,
+    tab_index: Option<TabIndex>,
     // Index of active surface in `records`.
     surface: usize,
     // Index of active node in `records`.
@@ -279,20 +352,22 @@ pub struct TabState {
     tab_names: HashSet<String>,
     // Observability helper.
     observer: observer::Observer,
+    identifier: Identifier,
 }
 
 impl TabState {
     pub fn new() -> Self {
         // Create a `DockState` with an initial tab "tab1" in the main `Surface`'s root node.
         let paeva = players::Players::paeva();
+        let identifier: Identifier = Default::default();
         let attributes = paeva.attributes();
-        let table = table::TableView::new(*attributes);
+        let table = TableView::new(*attributes);
         let mut gen = names::Generator::with_naming(names::Name::Numbered);
         let name = gen.next().expect("Could not get name from generator.");
         let mut tab_names = HashSet::new();
         tab_names.insert(name.clone());
-        let tab_view = TabView::with_name(table, name);
-        let tree = egui_dock::DockState::new(vec![tab_view]);
+        let tab_view = TabView::named(table, &name);
+        let tree = egui_dock::DockState::new(vec![paeva]);
         let records = Records::from(&tree);
         let surfaces = records.surfaces();
         let nodes = records.nodes();
@@ -329,6 +404,7 @@ impl TabState {
             tab,
             tab_names,
             observer,
+            identifier,
         }
     }
 
@@ -1008,6 +1084,8 @@ impl TabState {
         self.observer.success("Records updated.");
     }
 
+    /// If [`egui_dock::DockArea::show_add_buttons`] is set to `true` and
+    /// [`egui_dock::DockArea::show_add_popup`] is set to `true`, then the variants of [`ContextMenu`] appear as options in a context menu.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let mut added_nodes = Vec::new();
         // Here we just display the `DockState` using a `DockArea`.
@@ -1020,25 +1098,32 @@ impl TabState {
             .show_add_buttons(true)
             .show_add_popup(true)
             .style(egui_dock::Style::from_egui(ui.style().as_ref()))
-            .show_inside(ui, &mut TabViewer::new(&mut added_nodes));
+            .show_inside(
+                ui,
+                &mut TabViewer::new(&mut added_nodes, &mut self.identifier),
+            );
         let update = !added_nodes.is_empty();
         let names = self.new_names(added_nodes.len());
         let mut name_iter = names.iter();
 
+        // At this point we can inspect the TabContext and take different actions according the
+        // variant of the ContextMenu.
+        // Currently we do one action and do not match on the ContextMenu.
         added_nodes.drain(..).for_each(|tab_context| {
             self.tree
                 .set_focused_node_and_surface((tab_context.surface, tab_context.node));
             self.tree.push_to_focused_leaf({
-                let paeva = players::Players::paeva();
-                let attr = paeva.attributes();
-                let table = table::TableView::new(*attr);
-                TabView::with_name(
-                    table,
-                    name_iter
-                        .next()
-                        .expect("Should be one name for each new tab.")
-                        .clone(),
-                )
+                players::Players::paeva()
+
+                // let attr = paeva.attributes();
+                // let table = TableView::new(*attr);
+                // TabView::with_name(
+                //     table,
+                //     name_iter
+                //         .next()
+                //         .expect("Should be one name for each new tab.")
+                //         .clone(),
+                // )
             });
             // self.tab_index += 1;
             self.observer.success("Tab added.");
@@ -1054,7 +1139,10 @@ impl TabState {
         // tracing::info!("Panel id: {:?}", id);
         // prints "FFFF"
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.ui(ui);
+            // Unnecessary.
+            ui.push_id(self.identifier.name(), |ui| {
+                self.ui(ui);
+            });
         });
     }
 

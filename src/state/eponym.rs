@@ -323,7 +323,7 @@ impl State {
             AppAct::ActiveTab => {
                 if let Some(tab) = self.tab.leaf() {
                     tracing::info!("Active tab found.");
-                    tracing::info!("Rows: {}", tab.view().view().len());
+                    // tracing::info!("Rows: {}", tab.view().view().len());
                     // tab.act();
                 } else {
                     tracing::info!("Active tab not returned.");

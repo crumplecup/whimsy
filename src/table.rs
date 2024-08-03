@@ -276,6 +276,8 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
             }
         }
 
+        let mut id = crate::identifier::Identifier::default();
+        // ui.push_id(id.name(), |ui: &mut Ui| {
         // Populate the table.
         table
             // iterate through the headers and print them in bold as the header of each column.
@@ -285,37 +287,39 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
                     .enumerate()
                     .map(|(i, v)| {
                         header.col(|ui| {
-                            ui.horizontal(|ui| {
-                                ui.strong(v);
-                                // Offset the column index if the checked column is not there.
-                                // Checked is the first column, so subtract index numbers greater
-                                // than one by one.
-                                // Since the "order by" check box for row zero is not visible when
-                                // the config for checked is false, the input from the user cannot
-                                // be zero.
-                                let flag = if self.config.checked && i > 0 {
-                                    i - 1
-                                } else {
-                                    // If config is checked, pass i normally.
-                                    i
-                                };
-                                // Flag indicates the column, while ord flag indicates the ordering
-                                // at the column.
-                                let symbol = match self.ord_flags[flag] {
-                                    true => "⏷",
-                                    false => "⏶",
-                                };
-                                let ord_button = ui.button(symbol);
-                                if ui.button(symbol).clicked {
-                                    if self.config.checked && i > 0 {
-                                        self.set_ord = Some(i - 1);
-                                        self.ord_flags[i - 1] = !self.ord_flags[i - 1];
+                            ui.push_id(id.name(), |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.strong(v);
+                                    // Offset the column index if the checked column is not there.
+                                    // Checked is the first column, so subtract index numbers greater
+                                    // than one by one.
+                                    // Since the "order by" check box for row zero is not visible when
+                                    // the config for checked is false, the input from the user cannot
+                                    // be zero.
+                                    let flag = if self.config.checked && i > 0 {
+                                        i - 1
                                     } else {
-                                        self.set_ord = Some(i);
-                                        self.ord_flags[i] = !self.ord_flags[i];
-                                    }
-                                    tracing::info!("Ord flags set.");
-                                };
+                                        // If config is checked, pass i normally.
+                                        i
+                                    };
+                                    // Flag indicates the column, while ord flag indicates the ordering
+                                    // at the column.
+                                    let symbol = match self.ord_flags[flag] {
+                                        true => "⏷",
+                                        false => "⏶",
+                                    };
+                                    let ord_button = ui.button(symbol);
+                                    if ui.button(symbol).clicked {
+                                        if self.config.checked && i > 0 {
+                                            self.set_ord = Some(i - 1);
+                                            self.ord_flags[i - 1] = !self.ord_flags[i - 1];
+                                        } else {
+                                            self.set_ord = Some(i);
+                                            self.ord_flags[i] = !self.ord_flags[i];
+                                        }
+                                        tracing::info!("Ord flags set.");
+                                    };
+                                });
                             });
                         })
                     })
@@ -337,12 +341,16 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
                         let checked = self.checks.get_mut(row_id);
                         if let Some(check) = checked {
                             row.col(|ui| {
-                                ui.checkbox(check, "");
+                                ui.push_id(id.name(), |ui| {
+                                    ui.checkbox(check, "");
+                                });
                             });
                         } else {
                             tracing::info!("Bad checkbox reference.");
                             row.col(|ui| {
-                                ui.label("No box");
+                                ui.push_id(id.name(), |ui| {
+                                    ui.label("No box");
+                                });
                             });
                         }
                     }
@@ -351,13 +359,17 @@ impl<T: Tabular<U> + Default + Filtration<T, V> + Clone, U: Columnar + Default, 
                         .iter()
                         .map(|v| {
                             row.col(|ui| {
-                                ui.label(v);
+                                ui.push_id(id.name(), |ui: &mut Ui| {
+                                    ui.label(v);
+                                });
+                                // ui.label(v);
                             });
                         })
                         .for_each(drop);
                     self.toggle_row_selection(row_id, &row.response());
                 });
             });
+        // });
     }
 
     pub fn contains(&self, fragment: &str) -> Vec<U> {
