@@ -159,7 +159,7 @@ fn import_addresses() -> Polite<()> {
     {};
     info!("Subscriber initialized.");
     let sa = address::prelude::GrantsPassSpatialAddresses::from_csv("data/addresses.csv").unwrap();
-    let sa = address::prelude::SpatialAddresses::from(&sa.records[..]);
+    let sa = address::prelude::SpatialAddresses::from(&sa[..]);
     let sa = whimsy::prelude::AddressPoints::from(&sa);
     sa.save("data/addresses.data")?;
     Ok(())
@@ -180,7 +180,7 @@ fn iterate_enum() -> Polite<()> {
         .collect::<Vec<String>>();
     named.pop();
     named.iter().map(|x| tracing::info!("{x}")).for_each(drop);
-    let mut app = whimsy::prelude::AppAct::iter()
+    let app = whimsy::prelude::AppAct::iter()
         .map(|x| x.to_string())
         .collect::<Vec<String>>();
     app.iter().map(|x| tracing::info!("{x}")).for_each(drop);

@@ -277,53 +277,49 @@ impl AddressPoints {
                 AddressColumns::Directional => {
                     if reverse {
                         self.records
-                            .sort_by(|a, b| b.address.directional().cmp(&a.address.directional()));
+                            .sort_by(|a, b| b.address.directional().cmp(a.address.directional()));
                     } else {
                         self.records
-                            .sort_by(|a, b| a.address.directional().cmp(&b.address.directional()));
+                            .sort_by(|a, b| a.address.directional().cmp(b.address.directional()));
                     }
                 }
                 AddressColumns::StreetName => {
                     if reverse {
                         self.records
-                            .sort_by(|a, b| b.address.street_name().cmp(&a.address.street_name()));
+                            .sort_by(|a, b| b.address.street_name().cmp(a.address.street_name()));
                     } else {
                         self.records
-                            .sort_by(|a, b| a.address.street_name().cmp(&b.address.street_name()));
+                            .sort_by(|a, b| a.address.street_name().cmp(b.address.street_name()));
                     }
                 }
                 AddressColumns::StreetType => {
                     if reverse {
                         self.records
-                            .sort_by(|a, b| b.address.street_type().cmp(&a.address.street_type()));
+                            .sort_by(|a, b| b.address.street_type().cmp(a.address.street_type()));
                     } else {
                         self.records
-                            .sort_by(|a, b| a.address.street_type().cmp(&b.address.street_type()));
+                            .sort_by(|a, b| a.address.street_type().cmp(b.address.street_type()));
                     }
                 }
                 AddressColumns::SubaddressType => {
                     if reverse {
                         self.records.sort_by(|a, b| {
-                            b.address
-                                .subaddress_type()
-                                .cmp(&a.address.subaddress_type())
+                            b.address.subaddress_type().cmp(a.address.subaddress_type())
                         });
                     } else {
                         self.records.sort_by(|a, b| {
-                            a.address
-                                .subaddress_type()
-                                .cmp(&b.address.subaddress_type())
+                            a.address.subaddress_type().cmp(b.address.subaddress_type())
                         });
                     }
                 }
                 AddressColumns::SubaddressId => {
                     if reverse {
                         self.records.sort_by(|a, b| {
-                            b.address.subaddress_id().cmp(&a.address.subaddress_id())
+                            b.address.subaddress_id().cmp(a.address.subaddress_id())
                         });
                     } else {
                         self.records.sort_by(|a, b| {
-                            a.address.subaddress_id().cmp(&b.address.subaddress_id())
+                            a.address.subaddress_id().cmp(b.address.subaddress_id())
                         });
                     }
                 }
@@ -339,10 +335,10 @@ impl AddressPoints {
                 AddressColumns::Status => {
                     if reverse {
                         self.records
-                            .sort_by(|a, b| b.address.status().cmp(&a.address.status()));
+                            .sort_by(|a, b| b.address.status().cmp(a.address.status()));
                     } else {
                         self.records
-                            .sort_by(|a, b| a.address.status().cmp(&b.address.status()));
+                            .sort_by(|a, b| a.address.status().cmp(b.address.status()));
                     }
                 }
             }
@@ -384,7 +380,6 @@ impl Filtration<AddressPoints, String> for AddressPoints {
 impl From<&SpatialAddresses> for AddressPoints {
     fn from(addresses: &SpatialAddresses) -> Self {
         let records = addresses
-            .records
             .iter()
             .map(AddressPoint::from)
             .collect::<Vec<AddressPoint>>();
@@ -476,7 +471,6 @@ pub struct MatchPoints {
 impl From<&MatchRecords> for MatchPoints {
     fn from(records: &MatchRecords) -> Self {
         let records = records
-            .records
             .iter()
             .map(|r| r.into())
             .collect::<Vec<MatchPoint>>();
